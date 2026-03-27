@@ -1,0 +1,9 @@
+# .gitignore
+.venv/
+__pycache__/
+.env
+data/
+docker-data/
+*.parquet
+*.json
+.DS_Store
