@@ -44,18 +44,15 @@ def load_collection_from_dir(dir_name: str, collection_name: str, batch_size: in
 
     logger.info(f"Loading partitions from {dir_name} into {collection_name}...")
     
-    # Sort files to maintain chronological order if any
     parquet_files = sorted(dir_path.glob("*.parquet"))
     total_files = len(parquet_files)
     
     for idx, file_path in enumerate(parquet_files, 1):
         logger.info(f"Processing {file_path.name} ({idx}/{total_files})...")
         
-        # Read the 100k row partition
         df = pl.read_parquet(file_path)
         dicts = df.to_dicts()
         
-        # Process in smaller DB insertion batches (10k)
         total_rows = len(dicts)
         for i in range(0, total_rows, batch_size):
             batch = dicts[i:i + batch_size]
@@ -64,18 +61,22 @@ def load_collection_from_dir(dir_name: str, collection_name: str, batch_size: in
             for doc in batch:
                 cleaned_doc = clean_dict(doc)
                 
-                # Map Yelp ID to MongoDB _id for primary indexing
-                if 'business_id' in cleaned_doc:
+                # Context-aware ID mapping to prevent E11000 duplicate key errors
+                if collection_name == "businesses" and 'business_id' in cleaned_doc:
                     cleaned_doc['_id'] = cleaned_doc.pop('business_id')
-                elif 'user_id' in cleaned_doc:
+                elif collection_name == "users" and 'user_id' in cleaned_doc:
                     cleaned_doc['_id'] = cleaned_doc.pop('user_id')
-                elif 'review_id' in cleaned_doc:
+                elif collection_name == "reviews" and 'review_id' in cleaned_doc:
                     cleaned_doc['_id'] = cleaned_doc.pop('review_id')
+                # Tips do not have a unique Yelp ID, so we let MongoDB auto-generate an ObjectId.
                     
                 cleaned_batch.append(cleaned_doc)
             
             if cleaned_batch:
-                collection.insert_many(cleaned_batch, ordered=False)
+                try:
+                    collection.insert_many(cleaned_batch, ordered=False)
+                except Exception as e:
+                    logger.error(f"Batch insertion error in {collection_name}: {e}")
                 
         logger.info(f"Finished inserting {file_path.name}")
 
