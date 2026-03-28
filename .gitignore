@@ -7,3 +7,4 @@ docker-data/
 *.parquet
 *.json
 .DS_Store
+logs/
