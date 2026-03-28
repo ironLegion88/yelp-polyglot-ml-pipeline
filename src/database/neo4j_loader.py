@@ -78,36 +78,46 @@ def load_graph_entities(driver, dir_name: str, query: str, batch_size: int = 500
         logger.info(f"Finished parsing {file_path.name} to Neo4j.")
 
 def load_user_friends(driver, batch_size=10000):
-    """Specially optimized loader for the dense User-Friend network using Polars explode."""
+    """Specially optimized loader for the dense User-Friend network."""
     dir_path = PROCESSED_DATA_DIR / "users"
     if not dir_path.exists() or not dir_path.is_dir():
         return
 
-    logger.info("Building User-Friend network (Optimized Flat Processing)...")
+    logger.info("Building User-Friend network (Optimized Deduplicated Processing)...")
     parquet_files = sorted(dir_path.glob("*.parquet"))
     
     for file_path in parquet_files:
-        # Read only the necessary columns, explode the array into flat rows
-        df = (
-            pl.read_parquet(file_path)
-            .select(["user_id", "friends"])
-            .explode("friends")
-            .drop_nulls()
-            .rename({"friends": "friend_id"})
+        # Read file and handle the string-to-list conversion on the fly
+        df = pl.read_parquet(file_path).select(["user_id", "friends"])
+        
+        # Split the string if it's not already a list
+        if df["friends"].dtype == pl.Utf8:
+            df = df.with_columns(pl.col("friends").str.split(", "))
+            
+        # Explode the array into flat rows
+        df = df.explode("friends").drop_nulls().rename({"friends": "friend_id"})
+        
+        # Filter out empty strings and "None" strings
+        df = df.filter(
+            (pl.col("friend_id") != "") & 
+            (pl.col("friend_id") != "None")
         )
         
-        # Filter out any empty strings
-        df = df.filter(pl.col("friend_id") != "")
+        # Optimization: Deduplicate undirected relationships.
+        # Since Yelp friends are mutual (A has B, B has A), we enforce an alphabetical 
+        # ordering condition (A < B). This cuts the number of edges we send to Neo4j 
+        # exactly in half, massively saving memory and preventing duplicate processing.
+        df = df.filter(pl.col("user_id") < pl.col("friend_id"))
         
         dicts = df.to_dicts()
         total_rows = len(dicts)
         
-        # Process the flat pairs in strict chunks to keep Neo4j heap usage low
+        # Process the flat pairs in strict chunks
         for i in range(0, total_rows, batch_size):
             batch = dicts[i:i + batch_size]
             run_batch_query(driver, Q_USER_FRIENDS, batch, f"{file_path.name} (Friends)")
             
-        logger.info(f"Finished friend edges for {file_path.name}")
+        logger.info(f"Finished deduplicated friend edges for {file_path.name}")
 
 # CYPHER QUERIES
 
