@@ -77,6 +77,38 @@ def load_graph_entities(driver, dir_name: str, query: str, batch_size: int = 500
             
         logger.info(f"Finished parsing {file_path.name} to Neo4j.")
 
+def load_user_friends(driver, batch_size=10000):
+    """Specially optimized loader for the dense User-Friend network using Polars explode."""
+    dir_path = PROCESSED_DATA_DIR / "users"
+    if not dir_path.exists() or not dir_path.is_dir():
+        return
+
+    logger.info("Building User-Friend network (Optimized Flat Processing)...")
+    parquet_files = sorted(dir_path.glob("*.parquet"))
+    
+    for file_path in parquet_files:
+        # Read only the necessary columns, explode the array into flat rows
+        df = (
+            pl.read_parquet(file_path)
+            .select(["user_id", "friends"])
+            .explode("friends")
+            .drop_nulls()
+            .rename({"friends": "friend_id"})
+        )
+        
+        # Filter out any empty strings
+        df = df.filter(pl.col("friend_id") != "")
+        
+        dicts = df.to_dicts()
+        total_rows = len(dicts)
+        
+        # Process the flat pairs in strict chunks to keep Neo4j heap usage low
+        for i in range(0, total_rows, batch_size):
+            batch = dicts[i:i + batch_size]
+            run_batch_query(driver, Q_USER_FRIENDS, batch, f"{file_path.name} (Friends)")
+            
+        logger.info(f"Finished friend edges for {file_path.name}")
+
 # CYPHER QUERIES
 
 # 1. Businesses, Cities, States, Categories
@@ -104,13 +136,13 @@ SET u.name = row.name, u.review_count = row.review_count, u.average_stars = row.
 """
 
 # 3. User Friends (Edges)
+# OPTIMIZED: Expects a flattened list of {user_id, friend_id} pairs.
+# Uses MATCH to ensure we only link existing users (preventing dangling node creation).
 Q_USER_FRIENDS = """
-UNWIND $batch AS row
-MATCH (u:User {user_id: row.user_id})
-FOREACH (friend_id IN coalesce(row.friends,[]) |
-    MERGE (f:User {user_id: friend_id})
-    MERGE (u)-[:FRIENDS_WITH]->(f)
-)
+UNWIND $batch AS pair
+MATCH (u:User {user_id: pair.user_id})
+MATCH (f:User {user_id: pair.friend_id})
+MERGE (u)-[:FRIENDS_WITH]->(f)
 """
 
 # 4. Reviews (Edges)
@@ -143,9 +175,9 @@ if __name__ == "__main__":
         # Step 2: User nodes
         load_graph_entities(driver, "users", Q_USER_NODES, batch_size=5000)
         
-        # Step 3: Social edges (Read users directory again to extract friend mappings)
+        # Step 3: Social edges (Optimized dense network loader)
         logger.info("Building User-Friend network...")
-        load_graph_entities(driver, "users", Q_USER_FRIENDS, batch_size=2500)
+        load_user_friends(driver, batch_size=10000)
         
         # Step 4: Business interactions
         load_graph_entities(driver, "tips", Q_TIPS, batch_size=5000)
