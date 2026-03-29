@@ -141,7 +141,7 @@ def verify_neo4j():
         # 4. Verify Node Schema Types
         logger.info("\n--- Neo4j Node Schema & Type Verification ---")
         for label, expected_schema in EXPECTED_NEO4J_NODES.items():
-            sample = session.run(f"MATCH (n:{label}) RETURN n LIMIT 1").single()
+            sample = session.run(f"MATCH (n:{label}) RETURN n LIMIT 1").single()    # type: ignore
             if not sample:
                 logger.warning(f"Node label {label} is empty or missing!")
                 continue
@@ -166,7 +166,7 @@ def verify_neo4j():
         # 5. Verify Edge Schema Types
         logger.info("\n--- Neo4j Edge Schema & Type Verification ---")
         for edge_type, expected_schema in EXPECTED_NEO4J_EDGES.items():
-            sample = session.run(f"MATCH ()-[r:{edge_type}]->() RETURN r LIMIT 1").single()
+            sample = session.run(f"MATCH ()-[r:{edge_type}]->() RETURN r LIMIT 1").single()    # type: ignore
             if not sample:
                 logger.warning(f"Edge type {edge_type} is empty or missing!")
                 continue
