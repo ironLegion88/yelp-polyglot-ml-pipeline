@@ -130,14 +130,22 @@ def transform_businesses(df: pl.DataFrame, checkin_df: pl.DataFrame) -> pl.DataF
     return joined
 
 def transform_users(df: pl.DataFrame) -> pl.DataFrame:
-    """Adds elite flags and converts yelping_since to datetime."""
-    
-    if "elite" in df.columns:
-        if df["elite"].dtype == pl.Utf8:
-            df = df.with_columns(pl.col("elite").str.split(","))
+    """Adds elite flags, converts dates, and correctly types the friends array."""
+    if "elite" in df.columns and df["elite"].dtype == pl.Utf8:
+        df = df.with_columns(pl.col("elite").str.split(","))
             
+    # NEW: Safely parse the friends string into a Polars List type
+    if "friends" in df.columns and df["friends"].dtype == pl.Utf8:
+        df = df.with_columns([
+            pl.when(pl.col("friends").is_in(["None", ""]))
+            .then(None)  # Set to null so fill_null can replace it with empty lists
+            .otherwise(pl.col("friends").str.split(", "))
+            .alias("friends")
+        ]).with_columns(
+            pl.col("friends").fill_null([]) # Ensure users with no friends get []
+        )
+        
     df = df.with_columns([
-        # Preserve time with datetime casting
         pl.col("yelping_since").str.strptime(pl.Datetime, "%Y-%m-%d %H:%M:%S", strict=False)
     ]).with_columns([
         (pl.col("elite").list.len() > 0).alias("is_elite_ever"),
