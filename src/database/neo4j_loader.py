@@ -18,17 +18,22 @@ def get_driver():
     return GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
 
 def clean_dict_for_neo4j(d):
-    """Removes NaN and formats lists safely for Neo4j."""
+    """Removes NaN, removes None, and enforces list typing for Neo4j compatability."""
     clean = {}
     for k, v in d.items():
         if v is None:
             continue
         if isinstance(v, float) and math.isnan(v):
             continue
-        # Ensure friends is a list if it was a comma-separated string
+            
+        # NEW: Safety net to handle string parsing for node properties
         if k == 'friends' and isinstance(v, str):
-            clean[k] = [f.strip() for f in v.split(",") if f.strip()]
+            if v in["None", ""]:
+                clean[k] = []
+            else:
+                clean[k] =[f.strip() for f in v.split(",") if f.strip()]
             continue
+            
         clean[k] = v
     return clean
 
