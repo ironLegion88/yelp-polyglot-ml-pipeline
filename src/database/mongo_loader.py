@@ -18,14 +18,22 @@ def get_db():
     return client[DB_NAME]
 
 def clean_dict(d):
-    """Recursively removes null/NaN values so MongoDB doesn't store garbage data."""
+    """Recursively removes null/NaN values and enforces strict typing before insertion."""
     clean = {}
     for k, v in d.items():
         if v is None:
             continue
-        # Check for float NaN
         if isinstance(v, float) and math.isnan(v):
             continue
+            
+        # NEW: Safety net to ensure friends is always inserted as a list
+        if k == 'friends' and isinstance(v, str):
+            if v in ["None", ""]:
+                clean[k] = []
+            else:
+                clean[k] = [f.strip() for f in v.split(",") if f.strip()]
+            continue
+            
         clean[k] = v
     return clean
 
