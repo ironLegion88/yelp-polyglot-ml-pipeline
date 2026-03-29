@@ -92,20 +92,17 @@ def load_user_friends(driver, batch_size=10000):
     parquet_files = sorted(dir_path.glob("*.parquet"))
     
     for file_path in parquet_files:
-        # Read file and handle the string-to-list conversion on the fly
+        # The ETL now outputs a native List type for 'friends'
         df = pl.read_parquet(file_path).select(["user_id", "friends"])
         
-        # Split the string if it's not already a list
-        if df["friends"].dtype == pl.Utf8:
-            df = df.with_columns(pl.col("friends").str.split(", "))
-            
         # Explode the array into flat rows
         df = df.explode("friends").drop_nulls().rename({"friends": "friend_id"})
         
-        # Filter out empty strings and "None" strings
+        # Filter out empty strings, "None", or the new empty list remnants
         df = df.filter(
             (pl.col("friend_id") != "") & 
-            (pl.col("friend_id") != "None")
+            (pl.col("friend_id") != "None") &
+            (pl.col("friend_id").is_not_null())
         )
         
         # Optimization: Deduplicate undirected relationships.
