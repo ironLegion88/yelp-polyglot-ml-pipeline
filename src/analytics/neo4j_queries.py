@@ -94,6 +94,24 @@ def run_q2(driver):
     
     return run_and_save_query(driver, 2, "Top 3 businesses by state (min 50 reviews)", q2_cypher)
 
+def run_q3(driver):
+    """
+    Q3: Find the 10 users who reviewed across the most distinct cities.
+    Optimization: Counts distinct :City nodes via graph traversal, which is much faster 
+    than string property matching.
+    """
+    q3_cypher = """
+    MATCH (u:User)-[r:REVIEWED]->(b:Business)-[:LOCATED_IN]->(c:City)
+    WITH u, c, avg(r.stars) AS mean_rating
+    WITH u, collect({city: c.name, avgRating: mean_rating}) AS city_ratings
+    ORDER BY size(city_ratings) DESC
+    LIMIT 10
+    RETURN u.name AS Name, 
+           size(city_ratings) AS NumberOfCities, 
+           city_ratings AS MeanRatingPerCity
+    """
+    return run_and_save_query(driver, 3, "Top 10 users by number of distinct cities reviewed", q3_cypher)
+
 if __name__ == "__main__":
     driver = get_driver()
     try:
@@ -102,13 +120,16 @@ if __name__ == "__main__":
             
         logger.info("Starting Neo4j Analytics Queries...")
         
-        df_q1 = run_q1(driver)
-        df_q2 = run_q2(driver)
+        # df_q1 = run_q1(driver)
+        # df_q2 = run_q2(driver)
+        df_q3 = run_q3(driver)
         
-        print("\nQ1 Output Preview:")
-        print(df_q1.head())
-        print("\nQ2 Output Preview:")
-        print(df_q2.head())
+        # print("\nQ1 Output Preview:")
+        # print(df_q1.head())
+        # print("\nQ2 Output Preview:")
+        # print(df_q2.head())
+        print("\nQ3 Output Preview:")
+        print(df_q3.head())
         
     except Exception as e:
         logger.exception(f"Query execution failed: {e}")
