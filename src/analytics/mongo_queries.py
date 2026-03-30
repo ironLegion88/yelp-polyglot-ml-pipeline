@@ -240,13 +240,64 @@ def execute_query_2():
     formatted_cat =["STRONGEST UPWARD TREND (CATEGORIES):"] + cat_trend_results[:5] +["\nSTRONGEST DOWNWARD TREND (CATEGORIES):"] + cat_trend_results[-5:][::-1]
     save_result_to_file("2B", f"Strongest Trends ({state_subset} Categories, 500k Sample)", pipeline_categories_trend, formatted_cat)
 
+
+# ====================================================================================
+# Query 3: Correlation between Review Volume and Star Ratings
+# ====================================================================================
+def execute_query_3():
+    db = get_db()
+    logger.info("Executing Query 3: Correlation between Review Volume and Star Ratings...")
+
+    # We use $bucket to create volume tiers. 
+    # This reveals 'Regression to the Mean' as volume increases.
+    pipeline_correlation =[
+        { "$bucket": {
+            "groupBy": "$review_count",
+            "boundaries": [0, 10, 50, 200, 1000, 5000],
+            "default": "Enterprise (5000+)",
+            "output": {
+                "avg_rating": { "$avg": "$stars" },
+                "std_dev": { "$stdDevPop": "$stars" },
+                "business_count": { "$sum": 1 },
+                "min_reviews": { "$min": "$review_count" },
+                "max_reviews": { "$max": "$review_count" }
+            }
+        }},
+        { "$project": {
+            "volume_tier": {
+                "$switch": {
+                    "branches": [
+                        { "case": { "$eq": ["$_id", 0] }, "then": "0-10 (Micro)" },
+                        { "case": { "$eq": ["$_id", 10] }, "then": "11-50 (Low)" },
+                        { "case": { "$eq": ["$_id", 50] }, "then": "51-200 (Mid)" },
+                        { "case": { "$eq": ["$_id", 200] }, "then": "201-1000 (High)" },
+                        { "case": { "$eq": ["$_id", 1000] }, "then": "1001-5000 (Very High)" }
+                    ],
+                    "default": "5000+ (Extreme)"
+                }
+            },
+            "avg_rating": { "$round": ["$avg_rating", 3] },
+            "rating_volatility_stddev": { "$round": ["$std_dev", 3] },
+            "business_count": 1,
+            "_id": 0
+        }}
+    ]
+
+    start = time.time()
+    results = list(db.businesses.aggregate(pipeline_correlation))
+    elapsed = time.time() - start
+    logger.success(f"Query 3 executed in {elapsed:.3f} seconds.")
+
+    save_result_to_file("3", "Correlation between Volume and Ratings (Bucket Analysis)", pipeline_correlation, results)
+
 if __name__ == "__main__":
     if OUTPUT_FILE.exists():
         OUTPUT_FILE.unlink()
         
     try:
-        execute_query_1()
-        execute_query_2()
+        # execute_query_1()
+        # execute_query_2()
+        execute_query_3()
         logger.info("Check queries/mongodb_answers.txt for the output.")
     except Exception as e:
         logger.exception(f"Query failed: {e}")
