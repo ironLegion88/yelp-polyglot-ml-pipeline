@@ -290,6 +290,80 @@ def execute_query_3():
 
     save_result_to_file("3", "Correlation between Volume and Ratings (Bucket Analysis)", pipeline_correlation, results)
 
+
+# ====================================================================================
+# Query 4: Comparing Review Behavior across Categories
+# ====================================================================================
+def execute_query_4():
+    db = get_db()
+    logger.info("Executing Query 4: Comparing Review Behavior across Categories (PA Subset)...")
+
+    state_subset = "PA"
+    RECORD_CAP = 1_000_000
+
+    pipeline_behavior =[
+        # 1. INDEX HIT: Filter businesses by state first
+        { "$match": { "state": state_subset } },
+        
+        # 2. Targeted Lookup
+        { "$lookup": {
+            "from": "reviews",
+            "localField": "_id",
+            "foreignField": "business_id",
+            "as": "rev"
+        }},
+        { "$unwind": "$rev" },
+        
+        # 3. Performance Cap
+        { "$limit": RECORD_CAP },
+        
+        # 4. Unwind categories to analyze behavior per category
+        { "$unwind": "$categories" },
+        
+        # 5. Group by category and calculate behavior metrics
+        { "$group": {
+            "_id": "$categories",
+            "total_reviews": { "$sum": 1 },
+            "total_useful": { "$sum": "$rev.useful" },
+            "total_length": { "$sum": { "$strLenCP": "$rev.text" } },
+            # Star Distribution Accumulators
+            "stars_1": { "$sum": { "$cond": [{ "$eq": ["$rev.stars", 1] }, 1, 0] } },
+            "stars_2": { "$sum": { "$cond": [{ "$eq": ["$rev.stars", 2] }, 1, 0] } },
+            "stars_3": { "$sum": { "$cond": [{ "$eq": ["$rev.stars", 3] }, 1, 0] } },
+            "stars_4": { "$sum": { "$cond": [{ "$eq": ["$rev.stars", 4] }, 1, 0] } },
+            "stars_5": { "$sum": { "$cond": [{ "$eq": ["$rev.stars", 5] }, 1, 0] } }
+        }},
+        
+        # 6. Filter for major categories to keep the report readable
+        { "$match": { "total_reviews": { "$gte": 500 } } },
+        
+        # 7. Final Projection: Calculate Ratios and Percentages
+        { "$project": {
+            "category": "$_id",
+            "avg_review_length": { "$round": [{ "$divide": ["$total_length", "$total_reviews"] }, 1] },
+            "useful_ratio": { "$round": [{ "$divide": ["$total_useful", "$total_reviews"] }, 3] },
+            "star_distribution_pct": {
+                "1_star": { "$round": [{ "$multiply": [{ "$divide": ["$stars_1", "$total_reviews"] }, 100] }, 1] },
+                "2_star": { "$round": [{ "$multiply": [{ "$divide": ["$stars_2", "$total_reviews"] }, 100] }, 1] },
+                "3_star": { "$round": [{ "$multiply": [{ "$divide": ["$stars_3", "$total_reviews"] }, 100] }, 1] },
+                "4_star": { "$round": [{ "$multiply": [{ "$divide": ["$stars_4", "$total_reviews"] }, 100] }, 1] },
+                "5_star": { "$round": [{ "$multiply": [{ "$divide": ["$stars_5", "$total_reviews"] }, 100] }, 1] }
+            },
+            "total_reviews": 1,
+            "_id": 0
+        }},
+        { "$sort": { "total_reviews": -1 } },
+        { "$limit": 20 } # Top 20 categories
+    ]
+
+    start = time.time()
+    # allowDiskUse is needed for the 1M record join/grouping
+    results = list(db.businesses.aggregate(pipeline_behavior, allowDiskUse=True))
+    elapsed = time.time() - start
+    logger.success(f"Query 4 executed in {elapsed:.3f} seconds.")
+
+    save_result_to_file("4", "Review Behavior Across Categories (Distribution, Length, Usefulness)", pipeline_behavior, results)
+
 if __name__ == "__main__":
     if OUTPUT_FILE.exists():
         OUTPUT_FILE.unlink()
@@ -297,7 +371,8 @@ if __name__ == "__main__":
     try:
         # execute_query_1()
         # execute_query_2()
-        execute_query_3()
+        # execute_query_3()
+        execute_query_4()
         logger.info("Check queries/mongodb_answers.txt for the output.")
     except Exception as e:
         logger.exception(f"Query failed: {e}")
