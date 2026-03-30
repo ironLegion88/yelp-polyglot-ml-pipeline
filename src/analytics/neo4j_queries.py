@@ -113,6 +113,27 @@ def run_q3(driver):
     """
     return run_and_save_query(driver, 3, "Top 10 users by number of distinct cities reviewed", q3_cypher)
 
+def run_q4(driver):
+    """
+    Q4: Users who reviewed >= 5 businesses in a specific category ('Mexican').
+    Optimization: Anchors on the Category node and traverses backwards. Uses the 
+    pre-calculated u.average_stars for O(1) overall rating comparison.
+    """
+    q4_cypher = """
+    MATCH (c:Category {name: 'Mexican'})<-[:IN_CATEGORY]-(b:Business)<-[r:REVIEWED]-(u:User)
+    WITH u, count(DISTINCT b) AS category_review_count, avg(r.stars) AS category_avg
+    WHERE category_review_count >= 5
+    RETURN u.user_id AS UserID,
+           u.name AS Name,
+           category_review_count AS CategoryReviewCount,
+           round(category_avg, 2) AS CategoryMean,
+           round(u.average_stars, 2) AS OverallMean,
+           round(category_avg - u.average_stars, 2) AS RatingDifference
+    ORDER BY CategoryReviewCount DESC
+    LIMIT 50
+    """
+    return run_and_save_query(driver, 4, "Users reviewing >= 5 'Mexican' businesses vs Overall Mean", q4_cypher)
+
 if __name__ == "__main__":
     driver = get_driver()
     try:
@@ -123,14 +144,17 @@ if __name__ == "__main__":
         
         # df_q1 = run_q1(driver)
         # df_q2 = run_q2(driver)
-        df_q3 = run_q3(driver)
+        #df_q3 = run_q3(driver)
+        df_q4 = run_q4(driver)
         
         # print("\nQ1 Output Preview:")
         # print(df_q1.head())
         # print("\nQ2 Output Preview:")
         # print(df_q2.head())
-        print("\nQ3 Output Preview:")
-        print(df_q3.head())
+        # print("\nQ3 Output Preview:")
+        # print(df_q3.head())
+        print("\nQ4 Output Preview:")
+        print(df_q4.head())
         
     except Exception as e:
         logger.exception(f"Query execution failed: {e}")
