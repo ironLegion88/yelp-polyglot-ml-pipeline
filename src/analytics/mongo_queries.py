@@ -121,53 +121,63 @@ def execute_query_2():
     # PART A: CITIES TREND
     # ==========================================
     pipeline_cities_trend =[
-        # 1. Group 7M reviews by business and year (Massive data reduction)
-        { "$group": {
-            "_id": { 
-                "business_id": "$business_id", 
-                "year": { "$year": "$date" } 
-            },
-            "sum_stars": { "$sum": "$stars" },
-            "review_count": { "$sum": 1 }
-        }},
-        # 2. Fast lookup against the indexed businesses collection
+        # 1. Start from businesses, filter out low-volume ones immediately to save resources
+        { "$match": { "review_count": { "$gte": 50 } } },
+        
+        # 2. Optimized lookup: Group reviews by year natively using the business_id index!
         { "$lookup": {
-            "from": "businesses",
-            "localField": "_id.business_id",
-            "foreignField": "_id",
-            "as": "business"
+            "from": "reviews",
+            "localField": "_id",
+            "foreignField": "business_id",
+            "pipeline":[
+                { "$group": {
+                    "_id": { "$year": "$date" },
+                    "sum_stars": { "$sum": "$stars" },
+                    "count": { "$sum": 1 }
+                }}
+            ],
+            "as": "yearly_stats"
         }},
-        { "$unwind": "$business" },
-        # 3. Re-group by city and year
+        { "$unwind": "$yearly_stats" },
+        
+        # 3. Group by City and Year
         { "$group": {
-            "_id": { 
-                "city": "$business.city", 
-                "year": "$_id.year" 
-            },
-            "total_stars": { "$sum": "$sum_stars" },
-            "total_reviews": { "$sum": "$review_count" }
+            "_id": { "city": "$city", "year": "$yearly_stats._id" },
+            "total_stars": { "$sum": "$yearly_stats.sum_stars" },
+            "total_reviews": { "$sum": "$yearly_stats.count" }
         }},
-        # 4. Calculate actual yearly average
+        
+        # 4. Format and calculate average
         { "$project": {
             "city": "$_id.city",
             "year": "$_id.year",
             "avg_stars": { "$divide":["$total_stars", "$total_reviews"] },
             "total_reviews": 1
         }},
-        # 5. Sort by year (Critical for identifying first/last year)
+        
+        # 5. CRITICAL DATA QUALITY FIX: Drop noisy years with < 50 reviews BEFORE calculating trend
+        { "$match": { "total_reviews": { "$gte": 50 } } },
+        
+        # 6. Sort chronologically
         { "$sort": { "year": 1 } },
-        # 6. Final grouping by city to build the timeline and extract trend
+        
+        # 7. Group into the final timeline
         { "$group": {
             "_id": "$city",
-            "timeline": { 
-                "$push": { "year": "$year", "avg_stars": "$avg_stars", "reviews": "$total_reviews" } 
-            },
+            "timeline": { "$push": { "year": "$year", "avg_stars": "$avg_stars", "reviews": "$total_reviews" } },
             "first_year_stars": { "$first": "$avg_stars" },
             "last_year_stars": { "$last": "$avg_stars" },
             "total_city_reviews": { "$sum": "$total_reviews" },
             "years_active": { "$sum": 1 }
         }},
-        # 7. Calculate trend (last_year - first_year) and filter for significance
+        
+        # 8. Overall Volume Filter
+        { "$match": {
+            "years_active": { "$gte": 5 },
+            "total_city_reviews": { "$gte": 5000 }
+        }},
+        
+        # 9. Calculate final mathematical trend
         { "$project": {
             "city": "$_id",
             "trend": { "$subtract": ["$last_year_stars", "$first_year_stars"] },
@@ -176,92 +186,99 @@ def execute_query_2():
             "years_active": 1,
             "_id": 0
         }},
-        # 8. Strict outlier filtering: Min 5 years history, 5000+ total reviews
-        { "$match": {
-            "years_active": { "$gte": 5 },
-            "total_city_reviews": { "$gte": 5000 }
-        }},
         { "$sort": { "trend": -1 } }
     ]
 
     start = time.time()
-    city_trend_results = list(db.reviews.aggregate(pipeline_cities_trend))
+    city_trend_results = list(db.businesses.aggregate(pipeline_cities_trend))
     elapsed = time.time() - start
     logger.success(f"Query 2 (Cities Trend) executed in {elapsed:.3f} seconds.")
 
     strongest_upward_cities = city_trend_results[:5]
     strongest_downward_cities = city_trend_results[-5:][::-1]
 
-    formatted_cities = ["STRONGEST UPWARD TREND (CITIES):"] + strongest_upward_cities +["\nSTRONGEST DOWNWARD TREND (CITIES):"] + strongest_downward_cities
-    save_result_to_file("2A", "Strongest Upward/Downward Trends (Cities)", pipeline_cities_trend, formatted_cities)
+    formatted_cities =["STRONGEST UPWARD TREND (CITIES):"] + strongest_upward_cities +["\nSTRONGEST DOWNWARD TREND (CITIES):"] + strongest_downward_cities
+    save_result_to_file("2A", "Strongest Trends Over Time (Cities)", pipeline_cities_trend, formatted_cities)
+
 
     # ==========================================
     # PART B: CATEGORIES TREND
     # ==========================================
     pipeline_categories_trend =[
-        # 1. Group reviews by business and year
-        { "$group": {
-            "_id": { "business_id": "$business_id", "year": { "$year": "$date" } },
-            "sum_stars": { "$sum": "$stars" },
-            "review_count": { "$sum": 1 }
-        }},
-        # 2. Lookup business
+        { "$match": { "review_count": { "$gte": 50 } } },
+        
         { "$lookup": {
-            "from": "businesses",
-            "localField": "_id.business_id",
-            "foreignField": "_id",
-            "as": "business"
+            "from": "reviews",
+            "localField": "_id",
+            "foreignField": "business_id",
+            "pipeline":[
+                { "$group": {
+                    "_id": { "$year": "$date" },
+                    "sum_stars": { "$sum": "$stars" },
+                    "count": { "$sum": 1 }
+                }}
+            ],
+            "as": "yearly_stats"
         }},
-        { "$unwind": "$business" },
-        # 3. Unwind categories to analyze them individually
-        { "$unwind": "$business.categories" },
-        # 4. Re-group by category and year
+        { "$unwind": "$yearly_stats" },
+        
+        # Expand categories AFTER getting the yearly stats to avoid duplicating work
+        { "$unwind": "$categories" },
+        
         { "$group": {
-            "_id": { "category": "$business.categories", "year": "$_id.year" },
-            "total_stars": { "$sum": "$sum_stars" },
-            "total_reviews": { "$sum": "$review_count" }
+            "_id": { "category": "$categories", "year": "$yearly_stats._id" },
+            "total_stars": { "$sum": "$yearly_stats.sum_stars" },
+            "total_reviews": { "$sum": "$yearly_stats.count" }
         }},
+        
         { "$project": {
             "category": "$_id.category",
             "year": "$_id.year",
-            "avg_stars": { "$divide": ["$total_stars", "$total_reviews"] },
+            "avg_stars": { "$divide":["$total_stars", "$total_reviews"] },
             "total_reviews": 1
         }},
+        
+        # DATA QUALITY FIX: Drop noisy years with < 100 reviews (Categories need higher thresholds)
+        { "$match": { "total_reviews": { "$gte": 100 } } },
+        
         { "$sort": { "year": 1 } },
+        
         { "$group": {
             "_id": "$category",
-            "timeline": { "$push": { "year": "$year", "avg_stars": "$avg_stars" } },
+            # Include 'reviews' in the categories timeline
+            "timeline": { "$push": { "year": "$year", "avg_stars": "$avg_stars", "reviews": "$total_reviews" } },
             "first_year_stars": { "$first": "$avg_stars" },
             "last_year_stars": { "$last": "$avg_stars" },
             "total_category_reviews": { "$sum": "$total_reviews" },
             "years_active": { "$sum": 1 }
         }},
+        
+        { "$match": {
+            "years_active": { "$gte": 5 },
+            "total_category_reviews": { "$gte": 10000 }
+        }},
+        
         { "$project": {
             "category": "$_id",
-            "trend": { "$subtract":["$last_year_stars", "$first_year_stars"] },
+            "trend": { "$subtract": ["$last_year_stars", "$first_year_stars"] },
             "timeline": 1,
             "total_category_reviews": 1,
             "years_active": 1,
             "_id": 0
         }},
-        # 8. Strict outlier filtering: Min 5 years history, 10000+ total reviews (Categories are broader)
-        { "$match": {
-            "years_active": { "$gte": 5 },
-            "total_category_reviews": { "$gte": 10000 }
-        }},
         { "$sort": { "trend": -1 } }
     ]
 
     start = time.time()
-    cat_trend_results = list(db.reviews.aggregate(pipeline_categories_trend))
+    cat_trend_results = list(db.businesses.aggregate(pipeline_categories_trend))
     elapsed = time.time() - start
     logger.success(f"Query 2 (Categories Trend) executed in {elapsed:.3f} seconds.")
 
     strongest_upward_cat = cat_trend_results[:5]
     strongest_downward_cat = cat_trend_results[-5:][::-1]
 
-    formatted_cat = ["STRONGEST UPWARD TREND (CATEGORIES):"] + strongest_upward_cat +["\nSTRONGEST DOWNWARD TREND (CATEGORIES):"] + strongest_downward_cat
-    save_result_to_file("2B", "Strongest Upward/Downward Trends (Categories)", pipeline_categories_trend, formatted_cat)
+    formatted_cat =["STRONGEST UPWARD TREND (CATEGORIES):"] + strongest_upward_cat +["\nSTRONGEST DOWNWARD TREND (CATEGORIES):"] + strongest_downward_cat
+    save_result_to_file("2B", "Strongest Trends Over Time (Categories)", pipeline_categories_trend, formatted_cat)
 
 if __name__ == "__main__":
     if OUTPUT_FILE.exists():
