@@ -97,8 +97,8 @@ def run_q2(driver):
 def run_q3(driver):
     """
     Q3: Find the 10 users who reviewed across the most distinct cities.
-    Optimization: Counts distinct :City nodes via graph traversal, which is much faster 
-    than string property matching.
+    Optimization: Counts distinct :City nodes via graph traversal.
+    Correction: Aggregates by unique u.user_id to prevent name collisions.
     """
     q3_cypher = """
     MATCH (u:User)-[r:REVIEWED]->(b:Business)-[:LOCATED_IN]->(c:City)
@@ -107,6 +107,7 @@ def run_q3(driver):
     ORDER BY size(city_ratings) DESC
     LIMIT 10
     RETURN u.name AS Name, 
+           u.user_id AS UserID,
            size(city_ratings) AS NumberOfCities, 
            city_ratings AS MeanRatingPerCity
     """
