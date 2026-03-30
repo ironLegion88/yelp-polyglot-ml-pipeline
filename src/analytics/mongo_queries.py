@@ -364,6 +364,67 @@ def execute_query_4():
 
     save_result_to_file("4", "Review Behavior Across Categories (Distribution, Length, Usefulness)", pipeline_behavior, results)
 
+
+# ====================================================================================
+# Query 5: Impact of User Tenure on Reviewing Behavior
+# ====================================================================================
+def execute_query_5():
+    db = get_db()
+    logger.info("Executing Query 5: Impact of User Tenure on Reviewing Behavior...")
+
+    reference_year = 2022
+
+    pipeline_tenure =[
+        # 1. Filter out users with 0 reviews to avoid division by zero
+        { "$match": { "review_count": { "$gt": 0 } } },
+        
+        # 2. Calculate Tenure and Quality Metrics
+        { "$project": {
+            "tenure_years": { "$subtract": [reference_year, { "$year": "$yelping_since" }] },
+            "average_stars": 1,
+            "useful_per_review": { "$divide": ["$useful", "$review_count"] }
+        }},
+        
+        # 3. Bucket users by Tenure
+        { "$bucket": {
+            "groupBy": "$tenure_years",
+            "boundaries": [0, 2, 5, 10, 15],
+            "default": "Veteran (15+ Years)",
+            "output": {
+                "avg_rating_given": { "$avg": "$average_stars" },
+                "avg_usefulness_score": { "$avg": "$useful_per_review" },
+                "user_count": { "$sum": 1 }
+            }
+        }},
+        
+        # 4. Final Formatting
+        { "$project": {
+            "tenure_tier": {
+                "$switch": {
+                    "branches": [
+                        { "case": { "$eq": ["$_id", 0] }, "then": "Newcomers (<2 yrs)" },
+                        { "case": { "$eq": ["$_id", 2] }, "then": "Established (2-5 yrs)" },
+                        { "case": { "$eq": ["$_id", 5] }, "then": "Experienced (5-10 yrs)" },
+                        { "case": { "$eq": ["$_id", 10] }, "then": "Long-term (10-15 yrs)" }
+                    ],
+                    "default": "Veterans (15+ yrs)"
+                }
+            },
+            "avg_rating_given": { "$round": ["$avg_rating_given", 3] },
+            "avg_usefulness_score": { "$round": ["$avg_usefulness_score", 3] },
+            "user_count": 1,
+            "_id": 0
+        }},
+        { "$sort": { "avg_usefulness_score": -1 } }
+    ]
+
+    start = time.time()
+    results = list(db.users.aggregate(pipeline_tenure))
+    elapsed = time.time() - start
+    logger.success(f"Query 5 executed in {elapsed:.3f} seconds.")
+
+    save_result_to_file("5", "Impact of User Tenure on Review Behavior", pipeline_tenure, results)
+
 if __name__ == "__main__":
     if OUTPUT_FILE.exists():
         OUTPUT_FILE.unlink()
@@ -372,7 +433,8 @@ if __name__ == "__main__":
         # execute_query_1()
         # execute_query_2()
         # execute_query_3()
-        execute_query_4()
+        # execute_query_4()
+        execute_query_5()
         logger.info("Check queries/mongodb_answers.txt for the output.")
     except Exception as e:
         logger.exception(f"Query failed: {e}")
