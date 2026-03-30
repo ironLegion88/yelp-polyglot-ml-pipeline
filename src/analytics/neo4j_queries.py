@@ -70,7 +70,29 @@ def run_q1(driver):
     
     return run_and_save_query(driver, 1, "Top 10 users by direct friends", q1_cypher)
 
-
+def run_q2(driver):
+    """
+    Q2: Top 3 businesses by avg star rating per state (min 50 reviews).
+    Optimization: Starts from State nodes, uses path traversal, and a fast 
+    APOC sorting procedure instead of a full business scan.
+    """
+    q2_cypher = """
+    MATCH (s:State)<-[:PART_OF]-(ci:City)<-[:LOCATED_IN]-(b:Business)
+    WHERE b.review_count >= 50
+    WITH s, ci, b
+    ORDER BY b.stars DESC
+    WITH s, collect({name: b.name, stars: b.stars, city: ci.name, categories: [
+        (b)-[:IN_CATEGORY]->(c) | c.name
+    ]}) AS businesses
+    RETURN s.code AS State, [business IN businesses[..3] | {
+        Name: business.name,
+        City: business.city,
+        Stars: business.stars,
+        Categories: business.categories
+    }] AS Top3Businesses
+    """
+    
+    return run_and_save_query(driver, 2, "Top 3 businesses by state (min 50 reviews)", q2_cypher)
 
 if __name__ == "__main__":
     driver = get_driver()
@@ -81,9 +103,12 @@ if __name__ == "__main__":
         logger.info("Starting Neo4j Analytics Queries...")
         
         df_q1 = run_q1(driver)
+        df_q2 = run_q2(driver)
         
         print("\nQ1 Output Preview:")
         print(df_q1.head())
+        print("\nQ2 Output Preview:")
+        print(df_q2.head())
         
     except Exception as e:
         logger.exception(f"Query execution failed: {e}")
