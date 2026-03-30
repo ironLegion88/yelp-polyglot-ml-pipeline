@@ -425,6 +425,62 @@ def execute_query_5():
 
     save_result_to_file("5", "Impact of User Tenure on Review Behavior", pipeline_tenure, results)
 
+
+# ====================================================================================
+# Query 6: Comparing Elite vs. Non-Elite User Behavior
+# ====================================================================================
+def execute_query_6():
+    db = get_db()
+    logger.info("Executing Query 6: Comparing Elite vs. Non-Elite User Behavior...")
+
+    # Sample 1,000,000 reviews to ensure we have a significant number of 
+    # elite interactions while keeping the join/aggregation fast.
+    SAMPLE_SIZE = 1_000_000
+
+    pipeline_elite_comparison =[
+        # 1. Start with a large sample of reviews
+        { "$sample": { "size": SAMPLE_SIZE } },
+        
+        # 2. Targeted Lookup to the indexed Users collection
+        { "$lookup": {
+            "from": "users",
+            "localField": "user_id",
+            "foreignField": "_id",
+            "as": "user_info"
+        }},
+        { "$unwind": "$user_info" },
+        
+        # 3. Group by the elite status flag we created during ETL
+        { "$group": {
+            "_id": "$user_info.is_elite_ever",
+            "avg_rating": { "$avg": "$stars" },
+            "avg_useful_votes": { "$avg": "$useful" },
+            "avg_review_length": { "$avg": { "$strLenCP": "$text" } },
+            "sample_review_count": { "$sum": 1 }
+        }},
+        
+        # 4. Final Projection and Formatting
+        { "$project": {
+            "user_status": { 
+                "$cond": [{ "$eq": ["$_id", True] }, "Elite User", "Non-Elite User"] 
+            },
+            "mean_star_rating": { "$round": ["$avg_rating", 3] },
+            "mean_review_length": { "$round": ["$avg_review_length", 1] },
+            "mean_useful_per_review": { "$round": ["$avg_useful_votes", 3] },
+            "sample_size": "$sample_review_count",
+            "_id": 0
+        }},
+        { "$sort": { "user_status": 1 } }
+    ]
+
+    start = time.time()
+    # allowDiskUse is critical when joining 1M records
+    results = list(db.reviews.aggregate(pipeline_elite_comparison, allowDiskUse=True))
+    elapsed = time.time() - start
+    logger.success(f"Query 6 executed in {elapsed:.3f} seconds.")
+
+    save_result_to_file("6", "Elite vs. Non-Elite Review Behavior (1M Review Sample)", pipeline_elite_comparison, results)
+
 if __name__ == "__main__":
     if OUTPUT_FILE.exists():
         OUTPUT_FILE.unlink()
@@ -434,7 +490,8 @@ if __name__ == "__main__":
         # execute_query_2()
         # execute_query_3()
         # execute_query_4()
-        execute_query_5()
+        # execute_query_5()
+        execute_query_6()
         logger.info("Check queries/mongodb_answers.txt for the output.")
     except Exception as e:
         logger.exception(f"Query failed: {e}")
