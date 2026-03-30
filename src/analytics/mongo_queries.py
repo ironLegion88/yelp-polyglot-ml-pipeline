@@ -31,8 +31,15 @@ def save_result_to_file(question_num, title, pipeline, results):
         f.write("PIPELINE (The Query):\n")
         f.write(format_pipeline(pipeline) + "\n\n")
         f.write("RESULTS:\n")
-        for idx, res in enumerate(results, 1):
-            f.write(f"  {idx}. {res}\n")
+        
+        counter = 1
+        for res in results:
+            if isinstance(res, str):
+                f.write(f"{res}\n")
+                counter = 1 # Reset counter for the next section
+            else:
+                f.write(f"  {counter}. {res}\n")
+                counter += 1
         f.write("\n\n")
 
 def execute_query_1():
