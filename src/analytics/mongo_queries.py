@@ -481,6 +481,88 @@ def execute_query_6():
 
     save_result_to_file("6", "Elite vs. Non-Elite Review Behavior (1M Review Sample)", pipeline_elite_comparison, results)
 
+
+# ====================================================================================
+# Query 7: Connection between Check-in Activity and Star Ratings
+# ====================================================================================
+def execute_query_7():
+    db = get_db()
+    logger.info("Executing Query 7: Connection between Check-in Activity and Star Ratings...")
+
+    # ==========================================
+    # PART A: GLOBAL CHECK-IN VOLUME VS RATING
+    # ==========================================
+    # Bucket businesses by their check-in volume to see the rating trend.
+    pipeline_checkin_stars =[
+        { "$match": { "checkin_count": { "$gt": 0 } } },
+        { "$bucket": {
+            "groupBy": "$checkin_count",
+            "boundaries": [1, 10, 50, 200, 500, 1000],
+            "default": "Viral (1000+)",
+            "output": {
+                "avg_rating": { "$avg": "$stars" },
+                "business_count": { "$sum": 1 }
+            }
+        }},
+        { "$project": {
+            "visit_tier": {
+                "$switch": {
+                    "branches": [
+                        { "case": { "$eq": ["$_id", 1] }, "then": "Rarely Visited (1-10)" },
+                        { "case": { "$eq": ["$_id", 10] }, "then": "Occasionally Visited (10-50)" },
+                        { "case": { "$eq": ["$_id", 50] }, "then": "Popular (50-200)" },
+                        { "case": { "$eq": ["$_id", 200] }, "then": "Highly Visited (200-500)" },
+                        { "case": { "$eq": ["$_id", 500] }, "then": "Top-Tier (500-1000)" }
+                    ],
+                    "default": "Mega-Business (1000+)"
+                }
+            },
+            "avg_rating": { "$round": ["$avg_rating", 3] },
+            "business_count": 1,
+            "_id": 0
+        }},
+        { "$sort": { "avg_rating": -1 } }
+    ]
+
+    # ==========================================
+    # PART B: CATEGORY VARIANCE (DOES THIS VARY BY CATEGORY?)
+    # ==========================================
+    # Compare the 'High Visit' rating against the 'Low Visit' rating 
+    # for each major category to see where foot traffic correlates with quality.
+    pipeline_category_variance =[
+        { "$match": { "checkin_count": { "$gt": 0 } } },
+        { "$unwind": "$categories" },
+        { "$group": {
+            "_id": "$categories",
+            "avg_rating_high_visit": { 
+                "$avg": { "$cond": [{ "$gte": ["$checkin_count", 100] }, "$stars", None] } 
+            },
+            "avg_rating_low_visit": { 
+                "$avg": { "$cond": [{ "$lt": ["$checkin_count", 20] }, "$stars", None] } 
+            },
+            "total_category_businesses": { "$sum": 1 }
+        }},
+        { "$match": { "total_category_businesses": { "$gte": 200 } } },
+        { "$project": {
+            "category": "$_id",
+            "high_visit_avg": { "$round": ["$avg_rating_high_visit", 3] },
+            "low_visit_avg": { "$round": ["$avg_rating_low_visit", 3] },
+            "rating_gap": { "$subtract": ["$avg_rating_high_visit", "$avg_rating_low_visit"] },
+            "_id": 0
+        }},
+        { "$sort": { "rating_gap": -1 } },
+        { "$limit": 10 }
+    ]
+
+    start = time.time()
+    global_results = list(db.businesses.aggregate(pipeline_checkin_stars))
+    category_results = list(db.businesses.aggregate(pipeline_category_variance))
+    elapsed = time.time() - start
+    logger.success(f"Query 7 executed in {elapsed:.3f} seconds.")
+
+    save_result_to_file("7A", "Global Visit Volume vs. Rating", pipeline_checkin_stars, global_results)
+    save_result_to_file("7B", "Category Variance (Impact of Visits on Rating)", pipeline_category_variance, ["\nTOP CATEGORIES WHERE HIGH VISITS CORRELATE WITH HIGHER RATINGS:"] + category_results)
+
 if __name__ == "__main__":
     if OUTPUT_FILE.exists():
         OUTPUT_FILE.unlink()
@@ -491,7 +573,8 @@ if __name__ == "__main__":
         # execute_query_3()
         # execute_query_4()
         # execute_query_5()
-        execute_query_6()
+        # execute_query_6()
+        execute_query_7()
         logger.info("Check queries/mongodb_answers.txt for the output.")
     except Exception as e:
         logger.exception(f"Query failed: {e}")
