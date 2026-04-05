@@ -1,0 +1,1238 @@
+================================================================================
+Query 1A: Safest and Least-Safe Cities (Min 50 businesses, 1000 reviews)
+================================================================================
+
+PIPELINE (The Query):
+[
+  {
+    "$group": {
+      "_id": "$city",
+      "avg_stars": {
+        "$avg": "$stars"
+      },
+      "total_reviews": {
+        "$sum": "$review_count"
+      },
+      "business_count": {
+        "$sum": 1
+      }
+    }
+  },
+  {
+    "$match": {
+      "total_reviews": {
+        "$gte": 1000
+      },
+      "business_count": {
+        "$gte": 50
+      }
+    }
+  },
+  {
+    "$sort": {
+      "avg_stars": -1
+    }
+  }
+]
+
+RESULTS:
+SAFEST CITIES:
+  1. {'_id': 'Montecito', 'avg_stars': 4.155913978494624, 'total_reviews': 4886, 'business_count': 93}
+  2. {'_id': 'Safety Harbor', 'avg_stars': 4.129496402877698, 'total_reviews': 6631, 'business_count': 139}
+  3. {'_id': 'Santa Barbara', 'avg_stars': 4.05144946461217, 'total_reviews': 262853, 'business_count': 3829}
+  4. {'_id': 'Saint Pete Beach', 'avg_stars': 4.026315789473684, 'total_reviews': 4153, 'business_count': 57}
+  5. {'_id': 'Carpinteria', 'avg_stars': 4.016778523489933, 'total_reviews': 16895, 'business_count': 298}
+
+LEAST-SAFE CITIES:
+  1. {'_id': 'Wyncote', 'avg_stars': 2.875, 'total_reviews': 1293, 'business_count': 60}
+  2. {'_id': 'Delran', 'avg_stars': 3.0, 'total_reviews': 1993, 'business_count': 101}
+  3. {'_id': 'King Of Prussia', 'avg_stars': 3.0074626865671643, 'total_reviews': 8074, 'business_count': 134}
+  4. {'_id': 'Bridgeton', 'avg_stars': 3.0179640718562872, 'total_reviews': 4191, 'business_count': 167}
+  5. {'_id': 'Hazelwood', 'avg_stars': 3.019230769230769, 'total_reviews': 2159, 'business_count': 104}
+
+
+================================================================================
+Query 1B: Safest and Least-Safe Business Categories (Min 100 businesses, 5000 reviews)
+================================================================================
+
+PIPELINE (The Query):
+[
+  {
+    "$unwind": "$categories"
+  },
+  {
+    "$group": {
+      "_id": "$categories",
+      "avg_stars": {
+        "$avg": "$stars"
+      },
+      "total_reviews": {
+        "$sum": "$review_count"
+      },
+      "business_count": {
+        "$sum": 1
+      }
+    }
+  },
+  {
+    "$match": {
+      "total_reviews": {
+        "$gte": 5000
+      },
+      "business_count": {
+        "$gte": 100
+      }
+    }
+  },
+  {
+    "$sort": {
+      "avg_stars": -1
+    }
+  }
+]
+
+RESULTS:
+SAFEST CATEGORIES:
+  1. {'_id': 'Team Building Activities', 'avg_stars': 4.5625, 'total_reviews': 5145, 'business_count': 136}
+  2. {'_id': 'Pilates', 'avg_stars': 4.535714285714286, 'total_reviews': 5224, 'business_count': 294}
+  3. {'_id': 'Walking Tours', 'avg_stars': 4.53, 'total_reviews': 9616, 'business_count': 100}
+  4. {'_id': 'Historical Tours', 'avg_stars': 4.522058823529412, 'total_reviews': 15355, 'business_count': 136}
+  5. {'_id': 'Distilleries', 'avg_stars': 4.519047619047619, 'total_reviews': 9363, 'business_count': 105}
+
+LEAST-SAFE CATEGORIES:
+  1. {'_id': 'Internet Service Providers', 'avg_stars': 2.341292134831461, 'total_reviews': 7947, 'business_count': 356}
+  2. {'_id': 'Property Management', 'avg_stars': 2.503293807641634, 'total_reviews': 12282, 'business_count': 759}
+  3. {'_id': 'Post Offices', 'avg_stars': 2.5565749235474007, 'total_reviews': 5284, 'business_count': 327}
+  4. {'_id': 'Apartments', 'avg_stars': 2.579906298802707, 'total_reviews': 28510, 'business_count': 1921}
+  5. {'_id': 'Parking', 'avg_stars': 2.6090534979423867, 'total_reviews': 9327, 'business_count': 243}
+
+
+================================================================================
+Query 2A: Strongest Trends (PA Cities, 500k Sample)
+================================================================================
+
+PIPELINE (The Query):
+[
+  {
+    "$match": {
+      "state": "PA"
+    }
+  },
+  {
+    "$lookup": {
+      "from": "reviews",
+      "localField": "_id",
+      "foreignField": "business_id",
+      "as": "review_docs"
+    }
+  },
+  {
+    "$unwind": "$review_docs"
+  },
+  {
+    "$limit": 500000
+  },
+  {
+    "$replaceRoot": {
+      "newRoot": {
+        "$mergeObjects": [
+          "$review_docs",
+          {
+            "city": "$city"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "$match": {
+      "date": {
+        "$gte": "2017-01-01T00:00:00",
+        "$lte": "2021-12-31T23:59:59"
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "city": "$city",
+        "year": {
+          "$year": "$date"
+        }
+      },
+      "total_stars": {
+        "$sum": "$stars"
+      },
+      "review_count": {
+        "$sum": 1
+      }
+    }
+  },
+  {
+    "$match": {
+      "review_count": {
+        "$gte": 20
+      }
+    }
+  },
+  {
+    "$project": {
+      "city": "$_id.city",
+      "year": "$_id.year",
+      "avg_stars": {
+        "$divide": [
+          "$total_stars",
+          "$review_count"
+        ]
+      },
+      "review_count": 1
+    }
+  },
+  {
+    "$sort": {
+      "year": 1
+    }
+  },
+  {
+    "$group": {
+      "_id": "$city",
+      "timeline": {
+        "$push": {
+          "year": "$year",
+          "avg_stars": "$avg_stars",
+          "reviews": "$review_count"
+        }
+      },
+      "first_year_stars": {
+        "$first": "$avg_stars"
+      },
+      "last_year_stars": {
+        "$last": "$avg_stars"
+      },
+      "years_active": {
+        "$sum": 1
+      }
+    }
+  },
+  {
+    "$match": {
+      "years_active": {
+        "$gte": 3
+      }
+    }
+  },
+  {
+    "$project": {
+      "city": "$_id",
+      "trend": {
+        "$subtract": [
+          "$last_year_stars",
+          "$first_year_stars"
+        ]
+      },
+      "timeline": 1,
+      "_id": 0
+    }
+  },
+  {
+    "$sort": {
+      "trend": -1
+    }
+  }
+]
+
+RESULTS:
+STRONGEST UPWARD TREND (CITIES):
+  1. {'timeline': [{'year': 2017, 'avg_stars': 2.9921875, 'reviews': 128}, {'year': 2018, 'avg_stars': 2.52991452991453, 'reviews': 117}, {'year': 2019, 'avg_stars': 2.5638297872340425, 'reviews': 94}, {'year': 2020, 'avg_stars': 3.607142857142857, 'reviews': 56}, {'year': 2021, 'avg_stars': 3.99, 'reviews': 100}], 'city': 'Wynnewood', 'trend': 0.9978125000000002}
+  2. {'timeline': [{'year': 2017, 'avg_stars': 2.5, 'reviews': 28}, {'year': 2018, 'avg_stars': 2.967741935483871, 'reviews': 31}, {'year': 2019, 'avg_stars': 2.3541666666666665, 'reviews': 48}, {'year': 2021, 'avg_stars': 3.3333333333333335, 'reviews': 48}], 'city': 'Thorndale', 'trend': 0.8333333333333335}
+  3. {'timeline': [{'year': 2017, 'avg_stars': 3.0508474576271185, 'reviews': 59}, {'year': 2018, 'avg_stars': 2.8666666666666667, 'reviews': 60}, {'year': 2019, 'avg_stars': 2.810344827586207, 'reviews': 58}, {'year': 2020, 'avg_stars': 4.2444444444444445, 'reviews': 45}, {'year': 2021, 'avg_stars': 3.857142857142857, 'reviews': 35}], 'city': 'Holland', 'trend': 0.8062953995157387}
+  4. {'timeline': [{'year': 2017, 'avg_stars': 3.272727272727273, 'reviews': 22}, {'year': 2018, 'avg_stars': 3.738095238095238, 'reviews': 42}, {'year': 2019, 'avg_stars': 3.6129032258064515, 'reviews': 31}, {'year': 2020, 'avg_stars': 4.2727272727272725, 'reviews': 22}, {'year': 2021, 'avg_stars': 4.066666666666666, 'reviews': 30}], 'city': 'Dublin', 'trend': 0.7939393939393935}
+  5. {'timeline': [{'year': 2017, 'avg_stars': 3.193548387096774, 'reviews': 31}, {'year': 2018, 'avg_stars': 3.9714285714285715, 'reviews': 35}, {'year': 2019, 'avg_stars': 3.9130434782608696, 'reviews': 23}], 'city': 'Cheltenham', 'trend': 0.7194950911640956}
+
+STRONGEST DOWNWARD TREND (CITIES):
+  1. {'timeline': [{'year': 2017, 'avg_stars': 3.5238095238095237, 'reviews': 21}, {'year': 2018, 'avg_stars': 4.05, 'reviews': 20}, {'year': 2019, 'avg_stars': 3.4, 'reviews': 25}, {'year': 2021, 'avg_stars': 2.25, 'reviews': 20}], 'city': 'Pipersville', 'trend': -1.2738095238095237}
+  2. {'timeline': [{'year': 2017, 'avg_stars': 3.810810810810811, 'reviews': 37}, {'year': 2018, 'avg_stars': 4.25, 'reviews': 36}, {'year': 2019, 'avg_stars': 3.6153846153846154, 'reviews': 26}, {'year': 2020, 'avg_stars': 3.896551724137931, 'reviews': 29}, {'year': 2021, 'avg_stars': 2.727272727272727, 'reviews': 22}], 'city': 'Merion Station', 'trend': -1.083538083538084}
+  3. {'timeline': [{'year': 2017, 'avg_stars': 3.865546218487395, 'reviews': 119}, {'year': 2018, 'avg_stars': 3.369565217391304, 'reviews': 92}, {'year': 2019, 'avg_stars': 3.0547945205479454, 'reviews': 73}, {'year': 2020, 'avg_stars': 3.257142857142857, 'reviews': 35}, {'year': 2021, 'avg_stars': 2.8048780487804876, 'reviews': 41}], 'city': 'Feasterville', 'trend': -1.0606681697069074}
+  4. {'timeline': [{'year': 2017, 'avg_stars': 3.3783783783783785, 'reviews': 222}, {'year': 2018, 'avg_stars': 3.0898876404494384, 'reviews': 178}, {'year': 2019, 'avg_stars': 3.121794871794872, 'reviews': 156}, {'year': 2020, 'avg_stars': 3.1018518518518516, 'reviews': 108}, {'year': 2021, 'avg_stars': 2.4242424242424243, 'reviews': 132}], 'city': 'Warrington', 'trend': -0.9541359541359542}
+  5. {'timeline': [{'year': 2017, 'avg_stars': 4.224137931034483, 'reviews': 58}, {'year': 2018, 'avg_stars': 3.5952380952380953, 'reviews': 42}, {'year': 2019, 'avg_stars': 3.95, 'reviews': 60}, {'year': 2020, 'avg_stars': 3.8205128205128207, 'reviews': 39}, {'year': 2021, 'avg_stars': 3.3142857142857145, 'reviews': 35}], 'city': 'Spring City', 'trend': -0.9098522167487686}
+
+
+================================================================================
+Query 2B: Strongest Trends (PA Categories, 500k Sample)
+================================================================================
+
+PIPELINE (The Query):
+[
+  {
+    "$match": {
+      "state": "PA"
+    }
+  },
+  {
+    "$lookup": {
+      "from": "reviews",
+      "localField": "_id",
+      "foreignField": "business_id",
+      "as": "review_docs"
+    }
+  },
+  {
+    "$unwind": "$review_docs"
+  },
+  {
+    "$limit": 500000
+  },
+  {
+    "$replaceRoot": {
+      "newRoot": {
+        "$mergeObjects": [
+          "$review_docs",
+          {
+            "categories": "$categories"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "$match": {
+      "date": {
+        "$gte": "2017-01-01T00:00:00",
+        "$lte": "2021-12-31T23:59:59"
+      }
+    }
+  },
+  {
+    "$unwind": "$categories"
+  },
+  {
+    "$group": {
+      "_id": {
+        "category": "$categories",
+        "year": {
+          "$year": "$date"
+        }
+      },
+      "total_stars": {
+        "$sum": "$stars"
+      },
+      "review_count": {
+        "$sum": 1
+      }
+    }
+  },
+  {
+    "$match": {
+      "review_count": {
+        "$gte": 50
+      }
+    }
+  },
+  {
+    "$project": {
+      "category": "$_id.category",
+      "year": "$_id.year",
+      "avg_stars": {
+        "$divide": [
+          "$total_stars",
+          "$review_count"
+        ]
+      },
+      "review_count": 1
+    }
+  },
+  {
+    "$sort": {
+      "year": 1
+    }
+  },
+  {
+    "$group": {
+      "_id": "$category",
+      "timeline": {
+        "$push": {
+          "year": "$year",
+          "avg_stars": "$avg_stars",
+          "reviews": "$review_count"
+        }
+      },
+      "first_year_stars": {
+        "$first": "$avg_stars"
+      },
+      "last_year_stars": {
+        "$last": "$avg_stars"
+      },
+      "years_active": {
+        "$sum": 1
+      }
+    }
+  },
+  {
+    "$match": {
+      "years_active": {
+        "$gte": 3
+      }
+    }
+  },
+  {
+    "$project": {
+      "category": "$_id",
+      "trend": {
+        "$subtract": [
+          "$last_year_stars",
+          "$first_year_stars"
+        ]
+      },
+      "timeline": 1,
+      "_id": 0
+    }
+  },
+  {
+    "$sort": {
+      "trend": -1
+    }
+  }
+]
+
+RESULTS:
+STRONGEST UPWARD TREND (CATEGORIES):
+  1. {'timeline': [{'year': 2017, 'avg_stars': 3.3125, 'reviews': 64}, {'year': 2018, 'avg_stars': 4.085714285714285, 'reviews': 70}, {'year': 2019, 'avg_stars': 3.8194444444444446, 'reviews': 72}, {'year': 2020, 'avg_stars': 4.333333333333333, 'reviews': 54}], 'category': 'Interior Design', 'trend': 1.020833333333333}
+  2. {'timeline': [{'year': 2018, 'avg_stars': 2.6545454545454548, 'reviews': 55}, {'year': 2019, 'avg_stars': 2.9814814814814814, 'reviews': 54}, {'year': 2020, 'avg_stars': 3.4545454545454546, 'reviews': 55}, {'year': 2021, 'avg_stars': 3.652173913043478, 'reviews': 69}], 'category': 'Roofing', 'trend': 0.9976284584980233}
+  3. {'timeline': [{'year': 2017, 'avg_stars': 3.272727272727273, 'reviews': 66}, {'year': 2018, 'avg_stars': 3.3137254901960786, 'reviews': 51}, {'year': 2019, 'avg_stars': 2.6818181818181817, 'reviews': 66}, {'year': 2021, 'avg_stars': 4.160493827160494, 'reviews': 81}], 'category': 'Golf', 'trend': 0.8877665544332207}
+  4. {'timeline': [{'year': 2017, 'avg_stars': 3.164383561643836, 'reviews': 73}, {'year': 2018, 'avg_stars': 3.1044776119402986, 'reviews': 67}, {'year': 2019, 'avg_stars': 3.0606060606060606, 'reviews': 66}, {'year': 2020, 'avg_stars': 3.1, 'reviews': 50}, {'year': 2021, 'avg_stars': 4.02, 'reviews': 50}], 'category': 'Mobile Phone Accessories', 'trend': 0.8556164383561637}
+  5. {'timeline': [{'year': 2017, 'avg_stars': 3.851063829787234, 'reviews': 94}, {'year': 2018, 'avg_stars': 3.289473684210526, 'reviews': 76}, {'year': 2019, 'avg_stars': 3.7439024390243905, 'reviews': 82}, {'year': 2020, 'avg_stars': 4.15, 'reviews': 60}, {'year': 2021, 'avg_stars': 4.433962264150943, 'reviews': 53}], 'category': 'Mobile Phone Repair', 'trend': 0.5828984343637091}
+
+STRONGEST DOWNWARD TREND (CATEGORIES):
+  1. {'timeline': [{'year': 2017, 'avg_stars': 3.9494949494949494, 'reviews': 99}, {'year': 2018, 'avg_stars': 3.7264957264957266, 'reviews': 117}, {'year': 2019, 'avg_stars': 3.831460674157303, 'reviews': 89}, {'year': 2021, 'avg_stars': 2.7222222222222223, 'reviews': 54}], 'category': 'Endodontists', 'trend': -1.227272727272727}
+  2. {'timeline': [{'year': 2017, 'avg_stars': 3.942528735632184, 'reviews': 87}, {'year': 2019, 'avg_stars': 2.9166666666666665, 'reviews': 60}, {'year': 2020, 'avg_stars': 2.88, 'reviews': 50}], 'category': 'Graphic Design', 'trend': -1.062528735632184}
+  3. {'timeline': [{'year': 2017, 'avg_stars': 3.9315068493150687, 'reviews': 73}, {'year': 2019, 'avg_stars': 2.9836065573770494, 'reviews': 61}, {'year': 2020, 'avg_stars': 2.88, 'reviews': 50}], 'category': 'Embroidery & Crochet', 'trend': -1.0515068493150688}
+  4. {'timeline': [{'year': 2017, 'avg_stars': 3.855769230769231, 'reviews': 208}, {'year': 2018, 'avg_stars': 3.8, 'reviews': 200}, {'year': 2019, 'avg_stars': 3.7818181818181817, 'reviews': 165}, {'year': 2020, 'avg_stars': 3.418918918918919, 'reviews': 74}, {'year': 2021, 'avg_stars': 2.8448275862068964, 'reviews': 58}], 'category': 'Yoga', 'trend': -1.0109416445623345}
+  5. {'timeline': [{'year': 2017, 'avg_stars': 4.083665338645418, 'reviews': 251}, {'year': 2018, 'avg_stars': 3.796153846153846, 'reviews': 260}, {'year': 2019, 'avg_stars': 3.721518987341772, 'reviews': 237}, {'year': 2020, 'avg_stars': 3.352, 'reviews': 125}, {'year': 2021, 'avg_stars': 3.122950819672131, 'reviews': 122}], 'category': 'Cosmetic Dentists', 'trend': -0.9607145189732873}
+
+
+================================================================================
+Query 3: Correlation between Volume and Ratings (Bucket Analysis)
+================================================================================
+
+PIPELINE (The Query):
+[
+  {
+    "$bucket": {
+      "groupBy": "$review_count",
+      "boundaries": [
+        0,
+        10,
+        50,
+        200,
+        1000,
+        5000
+      ],
+      "default": "Enterprise (5000+)",
+      "output": {
+        "avg_rating": {
+          "$avg": "$stars"
+        },
+        "std_dev": {
+          "$stdDevPop": "$stars"
+        },
+        "business_count": {
+          "$sum": 1
+        },
+        "min_reviews": {
+          "$min": "$review_count"
+        },
+        "max_reviews": {
+          "$max": "$review_count"
+        }
+      }
+    }
+  },
+  {
+    "$project": {
+      "volume_tier": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  0
+                ]
+              },
+              "then": "0-10 (Micro)"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  10
+                ]
+              },
+              "then": "11-50 (Low)"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  50
+                ]
+              },
+              "then": "51-200 (Mid)"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  200
+                ]
+              },
+              "then": "201-1000 (High)"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  1000
+                ]
+              },
+              "then": "1001-5000 (Very High)"
+            }
+          ],
+          "default": "5000+ (Extreme)"
+        }
+      },
+      "avg_rating": {
+        "$round": [
+          "$avg_rating",
+          3
+        ]
+      },
+      "rating_volatility_stddev": {
+        "$round": [
+          "$std_dev",
+          3
+        ]
+      },
+      "business_count": 1,
+      "_id": 0
+    }
+  }
+]
+
+RESULTS:
+  1. {'business_count': 51103, 'volume_tier': '0-10 (Micro)', 'avg_rating': 3.607, 'rating_volatility_stddev': 1.096}
+  2. {'business_count': 69988, 'volume_tier': '11-50 (Low)', 'avg_rating': 3.537, 'rating_volatility_stddev': 0.964}
+  3. {'business_count': 23013, 'volume_tier': '51-200 (Mid)', 'avg_rating': 3.677, 'rating_volatility_stddev': 0.766}
+  4. {'business_count': 5927, 'volume_tier': '201-1000 (High)', 'avg_rating': 3.881, 'rating_volatility_stddev': 0.549}
+  5. {'business_count': 308, 'volume_tier': '1001-5000 (Very High)', 'avg_rating': 4.078, 'rating_volatility_stddev': 0.407}
+  6. {'business_count': 7, 'volume_tier': '5000+ (Extreme)', 'avg_rating': 4.143, 'rating_volatility_stddev': 0.35}
+
+
+================================================================================
+Query 4: Review Behavior Across Categories (Distribution, Length, Usefulness)
+================================================================================
+
+PIPELINE (The Query):
+[
+  {
+    "$match": {
+      "state": "PA"
+    }
+  },
+  {
+    "$lookup": {
+      "from": "reviews",
+      "localField": "_id",
+      "foreignField": "business_id",
+      "as": "rev"
+    }
+  },
+  {
+    "$unwind": "$rev"
+  },
+  {
+    "$limit": 1000000
+  },
+  {
+    "$unwind": "$categories"
+  },
+  {
+    "$group": {
+      "_id": "$categories",
+      "total_reviews": {
+        "$sum": 1
+      },
+      "total_useful": {
+        "$sum": "$rev.useful"
+      },
+      "total_length": {
+        "$sum": {
+          "$strLenCP": "$rev.text"
+        }
+      },
+      "stars_1": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$rev.stars",
+                1
+              ]
+            },
+            1,
+            0
+          ]
+        }
+      },
+      "stars_2": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$rev.stars",
+                2
+              ]
+            },
+            1,
+            0
+          ]
+        }
+      },
+      "stars_3": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$rev.stars",
+                3
+              ]
+            },
+            1,
+            0
+          ]
+        }
+      },
+      "stars_4": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$rev.stars",
+                4
+              ]
+            },
+            1,
+            0
+          ]
+        }
+      },
+      "stars_5": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$rev.stars",
+                5
+              ]
+            },
+            1,
+            0
+          ]
+        }
+      }
+    }
+  },
+  {
+    "$match": {
+      "total_reviews": {
+        "$gte": 500
+      }
+    }
+  },
+  {
+    "$project": {
+      "category": "$_id",
+      "avg_review_length": {
+        "$round": [
+          {
+            "$divide": [
+              "$total_length",
+              "$total_reviews"
+            ]
+          },
+          1
+        ]
+      },
+      "useful_ratio": {
+        "$round": [
+          {
+            "$divide": [
+              "$total_useful",
+              "$total_reviews"
+            ]
+          },
+          3
+        ]
+      },
+      "star_distribution_pct": {
+        "1_star": {
+          "$round": [
+            {
+              "$multiply": [
+                {
+                  "$divide": [
+                    "$stars_1",
+                    "$total_reviews"
+                  ]
+                },
+                100
+              ]
+            },
+            1
+          ]
+        },
+        "2_star": {
+          "$round": [
+            {
+              "$multiply": [
+                {
+                  "$divide": [
+                    "$stars_2",
+                    "$total_reviews"
+                  ]
+                },
+                100
+              ]
+            },
+            1
+          ]
+        },
+        "3_star": {
+          "$round": [
+            {
+              "$multiply": [
+                {
+                  "$divide": [
+                    "$stars_3",
+                    "$total_reviews"
+                  ]
+                },
+                100
+              ]
+            },
+            1
+          ]
+        },
+        "4_star": {
+          "$round": [
+            {
+              "$multiply": [
+                {
+                  "$divide": [
+                    "$stars_4",
+                    "$total_reviews"
+                  ]
+                },
+                100
+              ]
+            },
+            1
+          ]
+        },
+        "5_star": {
+          "$round": [
+            {
+              "$multiply": [
+                {
+                  "$divide": [
+                    "$stars_5",
+                    "$total_reviews"
+                  ]
+                },
+                100
+              ]
+            },
+            1
+          ]
+        }
+      },
+      "total_reviews": 1,
+      "_id": 0
+    }
+  },
+  {
+    "$sort": {
+      "total_reviews": -1
+    }
+  },
+  {
+    "$limit": 20
+  }
+]
+
+RESULTS:
+  1. {'total_reviews': 689125, 'category': 'Restaurants', 'avg_review_length': 580.4, 'useful_ratio': 1.084, 'star_distribution_pct': {'1_star': 11.6, '2_star': 9.2, '3_star': 12.8, '4_star': 26.5, '5_star': 40.0}}
+  2. {'total_reviews': 249512, 'category': 'Food', 'avg_review_length': 555.3, 'useful_ratio': 1.176, 'star_distribution_pct': {'1_star': 11.3, '2_star': 8.4, '3_star': 11.7, '4_star': 25.1, '5_star': 43.5}}
+  3. {'total_reviews': 210292, 'category': 'Nightlife', 'avg_review_length': 630.6, 'useful_ratio': 1.087, 'star_distribution_pct': {'1_star': 11.1, '2_star': 10.0, '3_star': 14.5, '4_star': 28.7, '5_star': 35.6}}
+  4. {'total_reviews': 200307, 'category': 'Bars', 'avg_review_length': 627.9, 'useful_ratio': 1.061, 'star_distribution_pct': {'1_star': 11.1, '2_star': 10.1, '3_star': 14.6, '4_star': 29.0, '5_star': 35.2}}
+  5. {'total_reviews': 151263, 'category': 'American (New)', 'avg_review_length': 644.0, 'useful_ratio': 1.033, 'star_distribution_pct': {'1_star': 9.8, '2_star': 9.8, '3_star': 14.3, '4_star': 28.7, '5_star': 37.3}}
+  6. {'total_reviews': 126412, 'category': 'American (Traditional)', 'avg_review_length': 593.5, 'useful_ratio': 1.017, 'star_distribution_pct': {'1_star': 13.3, '2_star': 10.7, '3_star': 14.3, '4_star': 26.8, '5_star': 34.9}}
+  7. {'total_reviews': 112768, 'category': 'Breakfast & Brunch', 'avg_review_length': 591.4, 'useful_ratio': 1.044, 'star_distribution_pct': {'1_star': 9.3, '2_star': 8.9, '3_star': 13.1, '4_star': 27.9, '5_star': 40.8}}
+  8. {'total_reviews': 105582, 'category': 'Sandwiches', 'avg_review_length': 520.0, 'useful_ratio': 1.057, 'star_distribution_pct': {'1_star': 11.9, '2_star': 9.3, '3_star': 12.7, '4_star': 25.1, '5_star': 41.0}}
+  9. {'total_reviews': 93923, 'category': 'Italian', 'avg_review_length': 592.0, 'useful_ratio': 1.006, 'star_distribution_pct': {'1_star': 11.1, '2_star': 9.3, '3_star': 11.8, '4_star': 25.7, '5_star': 42.1}}
+  10. {'total_reviews': 88094, 'category': 'Pizza', 'avg_review_length': 523.4, 'useful_ratio': 0.933, 'star_distribution_pct': {'1_star': 14.6, '2_star': 9.3, '3_star': 11.7, '4_star': 24.6, '5_star': 39.8}}
+  11. {'total_reviews': 73578, 'category': 'Event Planning & Services', 'avg_review_length': 638.3, 'useful_ratio': 1.214, 'star_distribution_pct': {'1_star': 14.7, '2_star': 9.6, '3_star': 12.1, '4_star': 23.0, '5_star': 40.5}}
+  12. {'total_reviews': 72717, 'category': 'Shopping', 'avg_review_length': 619.9, 'useful_ratio': 1.662, 'star_distribution_pct': {'1_star': 21.3, '2_star': 6.9, '3_star': 7.7, '4_star': 15.8, '5_star': 48.3}}
+  13. {'total_reviews': 63936, 'category': 'Coffee & Tea', 'avg_review_length': 519.0, 'useful_ratio': 1.137, 'star_distribution_pct': {'1_star': 11.6, '2_star': 7.7, '3_star': 10.7, '4_star': 23.9, '5_star': 46.1}}
+  14. {'total_reviews': 59752, 'category': 'Beauty & Spas', 'avg_review_length': 590.9, 'useful_ratio': 1.444, 'star_distribution_pct': {'1_star': 17.0, '2_star': 6.6, '3_star': 5.1, '4_star': 11.7, '5_star': 59.6}}
+  15. {'total_reviews': 52870, 'category': 'Seafood', 'avg_review_length': 615.1, 'useful_ratio': 1.094, 'star_distribution_pct': {'1_star': 12.2, '2_star': 9.9, '3_star': 13.4, '4_star': 27.2, '5_star': 37.3}}
+  16. {'total_reviews': 48287, 'category': 'Burgers', 'avg_review_length': 550.6, 'useful_ratio': 1.023, 'star_distribution_pct': {'1_star': 17.0, '2_star': 10.5, '3_star': 14.0, '4_star': 25.9, '5_star': 32.6}}
+  17. {'total_reviews': 47460, 'category': 'Mexican', 'avg_review_length': 566.3, 'useful_ratio': 0.954, 'star_distribution_pct': {'1_star': 12.2, '2_star': 10.0, '3_star': 12.7, '4_star': 26.4, '5_star': 38.6}}
+  18. {'total_reviews': 41903, 'category': 'Chinese', 'avg_review_length': 544.6, 'useful_ratio': 1.11, 'star_distribution_pct': {'1_star': 13.6, '2_star': 8.9, '3_star': 13.4, '4_star': 28.5, '5_star': 35.7}}
+  19. {'total_reviews': 39517, 'category': 'Cafes', 'avg_review_length': 561.1, 'useful_ratio': 1.07, 'star_distribution_pct': {'1_star': 7.2, '2_star': 7.1, '3_star': 10.4, '4_star': 25.5, '5_star': 49.8}}
+  20. {'total_reviews': 39449, 'category': 'Salad', 'avg_review_length': 545.9, 'useful_ratio': 1.038, 'star_distribution_pct': {'1_star': 11.7, '2_star': 9.5, '3_star': 12.3, '4_star': 24.4, '5_star': 42.2}}
+
+
+================================================================================
+Query 5: Impact of User Tenure on Review Behavior
+================================================================================
+
+PIPELINE (The Query):
+[
+  {
+    "$match": {
+      "review_count": {
+        "$gt": 0
+      }
+    }
+  },
+  {
+    "$project": {
+      "tenure_years": {
+        "$subtract": [
+          2022,
+          {
+            "$year": "$yelping_since"
+          }
+        ]
+      },
+      "average_stars": 1,
+      "useful_per_review": {
+        "$divide": [
+          "$useful",
+          "$review_count"
+        ]
+      }
+    }
+  },
+  {
+    "$bucket": {
+      "groupBy": "$tenure_years",
+      "boundaries": [
+        0,
+        2,
+        5,
+        10,
+        15
+      ],
+      "default": "Veteran (15+ Years)",
+      "output": {
+        "avg_rating_given": {
+          "$avg": "$average_stars"
+        },
+        "avg_usefulness_score": {
+          "$avg": "$useful_per_review"
+        },
+        "user_count": {
+          "$sum": 1
+        }
+      }
+    }
+  },
+  {
+    "$project": {
+      "tenure_tier": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  0
+                ]
+              },
+              "then": "Newcomers (<2 yrs)"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  2
+                ]
+              },
+              "then": "Established (2-5 yrs)"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  5
+                ]
+              },
+              "then": "Experienced (5-10 yrs)"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  10
+                ]
+              },
+              "then": "Long-term (10-15 yrs)"
+            }
+          ],
+          "default": "Veterans (15+ yrs)"
+        }
+      },
+      "avg_rating_given": {
+        "$round": [
+          "$avg_rating_given",
+          3
+        ]
+      },
+      "avg_usefulness_score": {
+        "$round": [
+          "$avg_usefulness_score",
+          3
+        ]
+      },
+      "user_count": 1,
+      "_id": 0
+    }
+  },
+  {
+    "$sort": {
+      "avg_usefulness_score": -1
+    }
+  }
+]
+
+RESULTS:
+  1. {'user_count': 21790, 'tenure_tier': 'Veterans (15+ yrs)', 'avg_rating_given': 3.774, 'avg_usefulness_score': 1.718}
+  2. {'user_count': 577447, 'tenure_tier': 'Long-term (10-15 yrs)', 'avg_rating_given': 3.747, 'avg_usefulness_score': 1.17}
+  3. {'user_count': 1059709, 'tenure_tier': 'Experienced (5-10 yrs)', 'avg_rating_given': 3.654, 'avg_usefulness_score': 0.735}
+  4. {'user_count': 285650, 'tenure_tier': 'Established (2-5 yrs)', 'avg_rating_given': 3.396, 'avg_usefulness_score': 0.432}
+  5. {'user_count': 43247, 'tenure_tier': 'Newcomers (<2 yrs)', 'avg_rating_given': 2.964, 'avg_usefulness_score': 0.302}
+
+
+================================================================================
+Query 6: Elite vs. Non-Elite Review Behavior (1M Review Sample)
+================================================================================
+
+PIPELINE (The Query):
+[
+  {
+    "$sample": {
+      "size": 1000000
+    }
+  },
+  {
+    "$lookup": {
+      "from": "users",
+      "localField": "user_id",
+      "foreignField": "_id",
+      "as": "user_info"
+    }
+  },
+  {
+    "$unwind": "$user_info"
+  },
+  {
+    "$group": {
+      "_id": "$user_info.is_elite_ever",
+      "avg_rating": {
+        "$avg": "$stars"
+      },
+      "avg_useful_votes": {
+        "$avg": "$useful"
+      },
+      "avg_review_length": {
+        "$avg": {
+          "$strLenCP": "$text"
+        }
+      },
+      "sample_review_count": {
+        "$sum": 1
+      }
+    }
+  },
+  {
+    "$project": {
+      "user_status": {
+        "$cond": [
+          {
+            "$eq": [
+              "$_id",
+              true
+            ]
+          },
+          "Elite User",
+          "Non-Elite User"
+        ]
+      },
+      "mean_star_rating": {
+        "$round": [
+          "$avg_rating",
+          3
+        ]
+      },
+      "mean_review_length": {
+        "$round": [
+          "$avg_review_length",
+          1
+        ]
+      },
+      "mean_useful_per_review": {
+        "$round": [
+          "$avg_useful_votes",
+          3
+        ]
+      },
+      "sample_size": "$sample_review_count",
+      "_id": 0
+    }
+  },
+  {
+    "$sort": {
+      "user_status": 1
+    }
+  }
+]
+
+RESULTS:
+  1. {'user_status': 'Elite User', 'mean_star_rating': 3.748, 'mean_review_length': 567.4, 'mean_useful_per_review': 1.183, 'sample_size': 999995}
+
+
+================================================================================
+Query 7A: Global Visit Volume vs. Rating
+================================================================================
+
+PIPELINE (The Query):
+[
+  {
+    "$match": {
+      "checkin_count": {
+        "$gt": 0
+      }
+    }
+  },
+  {
+    "$bucket": {
+      "groupBy": "$checkin_count",
+      "boundaries": [
+        1,
+        10,
+        50,
+        200,
+        500,
+        1000
+      ],
+      "default": "Viral (1000+)",
+      "output": {
+        "avg_rating": {
+          "$avg": "$stars"
+        },
+        "business_count": {
+          "$sum": 1
+        }
+      }
+    }
+  },
+  {
+    "$project": {
+      "visit_tier": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  1
+                ]
+              },
+              "then": "Rarely Visited (1-10)"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  10
+                ]
+              },
+              "then": "Occasionally Visited (10-50)"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  50
+                ]
+              },
+              "then": "Popular (50-200)"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  200
+                ]
+              },
+              "then": "Highly Visited (200-500)"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  500
+                ]
+              },
+              "then": "Top-Tier (500-1000)"
+            }
+          ],
+          "default": "Mega-Business (1000+)"
+        }
+      },
+      "avg_rating": {
+        "$round": [
+          "$avg_rating",
+          3
+        ]
+      },
+      "business_count": 1,
+      "_id": 0
+    }
+  },
+  {
+    "$sort": {
+      "avg_rating": -1
+    }
+  }
+]
+
+RESULTS:
+  1. {'business_count': 2009, 'visit_tier': 'Mega-Business (1000+)', 'avg_rating': 3.877}
+  2. {'business_count': 3505, 'visit_tier': 'Top-Tier (500-1000)', 'avg_rating': 3.757}
+  3. {'business_count': 9539, 'visit_tier': 'Highly Visited (200-500)', 'avg_rating': 3.63}
+  4. {'business_count': 45960, 'visit_tier': 'Rarely Visited (1-10)', 'avg_rating': 3.607}
+  5. {'business_count': 26400, 'visit_tier': 'Popular (50-200)', 'avg_rating': 3.581}
+  6. {'business_count': 44517, 'visit_tier': 'Occasionally Visited (10-50)', 'avg_rating': 3.561}
+
+
+================================================================================
+Query 7B: Category Variance (Impact of Visits on Rating)
+================================================================================
+
+PIPELINE (The Query):
+[
+  {
+    "$match": {
+      "checkin_count": {
+        "$gt": 0
+      }
+    }
+  },
+  {
+    "$unwind": "$categories"
+  },
+  {
+    "$group": {
+      "_id": "$categories",
+      "avg_rating_high_visit": {
+        "$avg": {
+          "$cond": [
+            {
+              "$gte": [
+                "$checkin_count",
+                100
+              ]
+            },
+            "$stars",
+            null
+          ]
+        }
+      },
+      "avg_rating_low_visit": {
+        "$avg": {
+          "$cond": [
+            {
+              "$lt": [
+                "$checkin_count",
+                20
+              ]
+            },
+            "$stars",
+            null
+          ]
+        }
+      },
+      "total_category_businesses": {
+        "$sum": 1
+      }
+    }
+  },
+  {
+    "$match": {
+      "total_category_businesses": {
+        "$gte": 200
+      }
+    }
+  },
+  {
+    "$project": {
+      "category": "$_id",
+      "high_visit_avg": {
+        "$round": [
+          "$avg_rating_high_visit",
+          3
+        ]
+      },
+      "low_visit_avg": {
+        "$round": [
+          "$avg_rating_low_visit",
+          3
+        ]
+      },
+      "rating_gap": {
+        "$subtract": [
+          "$avg_rating_high_visit",
+          "$avg_rating_low_visit"
+        ]
+      },
+      "_id": 0
+    }
+  },
+  {
+    "$sort": {
+      "rating_gap": -1
+    }
+  },
+  {
+    "$limit": 10
+  }
+]
+
+RESULTS:
+
+TOP CATEGORIES WHERE HIGH VISITS CORRELATE WITH HIGHER RATINGS:
+  1. {'category': 'Parking', 'high_visit_avg': 3.625, 'low_visit_avg': 2.358, 'rating_gap': 1.2666666666666666}
+  2. {'category': 'Property Management', 'high_visit_avg': 3.625, 'low_visit_avg': 2.528, 'rating_gap': 1.0969471947194718}
+  3. {'category': 'Telecommunications', 'high_visit_avg': 3.75, 'low_visit_avg': 2.663, 'rating_gap': 1.0867003367003365}
+  4. {'category': 'Chicken Shop', 'high_visit_avg': 3.661, 'low_visit_avg': 2.663, 'rating_gap': 0.99816275721399}
+  5. {'category': 'Laboratory Testing', 'high_visit_avg': 3.75, 'low_visit_avg': 2.878, 'rating_gap': 0.8720657276995305}
+  6. {'category': 'Orthodontists', 'high_visit_avg': 4.5, 'low_visit_avg': 3.643, 'rating_gap': 0.8571428571428572}
+  7. {'category': 'Towing', 'high_visit_avg': 4.25, 'low_visit_avg': 3.521, 'rating_gap': 0.7288557213930349}
+  8. {'category': 'Real Estate Services', 'high_visit_avg': 4.167, 'low_visit_avg': 3.439, 'rating_gap': 0.7273284313725492}
+  9. {'category': 'Mobile Phone Accessories', 'high_visit_avg': 3.562, 'low_visit_avg': 2.842, 'rating_gap': 0.7201576576576576}
+  10. {'category': 'Movers', 'high_visit_avg': 4.0, 'low_visit_avg': 3.314, 'rating_gap': 0.6857923497267762}
+
+
