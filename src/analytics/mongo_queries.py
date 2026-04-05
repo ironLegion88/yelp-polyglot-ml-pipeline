@@ -568,12 +568,12 @@ if __name__ == "__main__":
         OUTPUT_FILE.unlink()
         
     try:
-        # execute_query_1()
-        # execute_query_2()
-        # execute_query_3()
-        # execute_query_4()
-        # execute_query_5()
-        # execute_query_6()
+        execute_query_1()
+        execute_query_2()
+        execute_query_3()
+        execute_query_4()
+        execute_query_5()
+        execute_query_6()
         execute_query_7()
         logger.info("Check queries/mongodb_answers.txt for the output.")
     except Exception as e:
