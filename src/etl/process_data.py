@@ -138,8 +138,8 @@ def transform_users(df: pl.DataFrame) -> pl.DataFrame:
             pl.when(pl.col("elite") == "")
             .then(None)
             .otherwise(pl.col("elite").str.split(","))
-            .alias("elite_list")
-        ).with_columns(pl.col("elite_list").fill_null([]))
+            .alias("elite_years") # Name it elite_years directly to avoid Polars crash due to target column name already existing
+        ).with_columns(pl.col("elite_years").fill_null([]))
             
     # FIX: Safely parse the friends string into a List[str]
     if "friends" in df.columns and df["friends"].dtype == pl.Utf8:
@@ -147,20 +147,22 @@ def transform_users(df: pl.DataFrame) -> pl.DataFrame:
             pl.when(pl.col("friends").is_in(["None", ""]))
             .then(None)
             .otherwise(pl.col("friends").str.split(", "))
-            .alias("friends_list")
-        ]).with_columns(pl.col("friends_list").fill_null([]))
+            .alias("friends") # Overwrite original
+        ]).with_columns(pl.col("friends").fill_null([]))
         
     # Final cleanup and flag generation
     df = df.with_columns([
         pl.col("yelping_since").str.strptime(pl.Datetime, "%Y-%m-%d %H:%M:%S", strict=False)
     ]).with_columns([
-        (pl.col("elite_list").list.len() > 0).alias("is_elite_ever"),
-        pl.col("elite_list").list.len().alias("elite_year_count")
+        (pl.col("elite_years").list.len() > 0).alias("is_elite_ever"),
+        (pl.col("elite_years").list.len()).alias("elite_year_count")
     ])
     
-    # Return only the columns we want for the final document
-    # Note: We include 'elite_list' if you want the years in the report!
-    return df.rename({"friends_list": "friends", "elite_list": "elite_years"})
+    # Drop the original elite string column if it's still there
+    if "elite" in df.columns:
+        df = df.drop("elite")
+        
+    return df
 
 def transform_reviews(df: pl.DataFrame) -> pl.DataFrame:
     """Converts review dates to datetime."""
