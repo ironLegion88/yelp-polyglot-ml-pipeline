@@ -130,28 +130,37 @@ def transform_businesses(df: pl.DataFrame, checkin_df: pl.DataFrame) -> pl.DataF
     return joined
 
 def transform_users(df: pl.DataFrame) -> pl.DataFrame:
-    """Adds elite flags, converts dates, and correctly types the friends array."""
+    """Adds elite flags, converts dates, and correctly types the friends/elite arrays."""
+    
+    # FIX: Correctly handle empty 'elite' strings so length is 0
     if "elite" in df.columns and df["elite"].dtype == pl.Utf8:
-        df = df.with_columns(pl.col("elite").str.split(","))
+        df = df.with_columns(
+            pl.when(pl.col("elite") == "")
+            .then(None)
+            .otherwise(pl.col("elite").str.split(","))
+            .alias("elite_list")
+        ).with_columns(pl.col("elite_list").fill_null([]))
             
-    # NEW: Safely parse the friends string into a Polars List type
+    # FIX: Safely parse the friends string into a List[str]
     if "friends" in df.columns and df["friends"].dtype == pl.Utf8:
         df = df.with_columns([
             pl.when(pl.col("friends").is_in(["None", ""]))
-            .then(None)  # Set to null so fill_null can replace it with empty lists
+            .then(None)
             .otherwise(pl.col("friends").str.split(", "))
-            .alias("friends")
-        ]).with_columns(
-            pl.col("friends").fill_null([]) # Ensure users with no friends get []
-        )
+            .alias("friends_list")
+        ]).with_columns(pl.col("friends_list").fill_null([]))
         
+    # Final cleanup and flag generation
     df = df.with_columns([
         pl.col("yelping_since").str.strptime(pl.Datetime, "%Y-%m-%d %H:%M:%S", strict=False)
     ]).with_columns([
-        (pl.col("elite").list.len() > 0).alias("is_elite_ever"),
-        pl.col("elite").list.len().alias("elite_year_count")
+        (pl.col("elite_list").list.len() > 0).alias("is_elite_ever"),
+        pl.col("elite_list").list.len().alias("elite_year_count")
     ])
-    return df
+    
+    # Return only the columns we want for the final document
+    # Note: We include 'elite_list' if you want the years in the report!
+    return df.rename({"friends_list": "friends", "elite_list": "elite_years"})
 
 def transform_reviews(df: pl.DataFrame) -> pl.DataFrame:
     """Converts review dates to datetime."""
