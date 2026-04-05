@@ -134,6 +134,29 @@ def run_q4(driver):
     """
     return run_and_save_query(driver, 4, "Users reviewing >= 5 'Mexican' businesses vs Overall Mean", q4_cypher)
 
+def run_q5(driver):
+    """
+    Q5: Reproduce MongoDB Query 1 (Safest Categories based on avg rating & volume).
+    Compares Cypher vs MongoDB Aggregation pipelines.
+    """
+    q5_cypher = """
+    MATCH (c:Category)<-[:IN_CATEGORY]-(b:Business)
+    WITH c.name AS Category, 
+         count(b) AS NumBusinesses, 
+         sum(b.review_count) AS TotalReviews, 
+         avg(b.stars) AS AvgRating
+    WHERE TotalReviews > 10000 
+    RETURN Category, 
+           NumBusinesses, 
+           TotalReviews, 
+           round(AvgRating, 2) AS AvgRating
+    ORDER BY AvgRating DESC
+    LIMIT 10
+    """
+    
+    df = run_and_save_query(driver, 5, "Safest Business Categories (Reproducing Mongo Q1)", q5_cypher)
+    return df
+
 if __name__ == "__main__":
     driver = get_driver()
     try:
@@ -142,19 +165,22 @@ if __name__ == "__main__":
             
         logger.info("Starting Neo4j Analytics Queries...")
         
-        # df_q1 = run_q1(driver)
-        # df_q2 = run_q2(driver)
-        #df_q3 = run_q3(driver)
+        df_q1 = run_q1(driver)
+        df_q2 = run_q2(driver)
+        df_q3 = run_q3(driver)
         df_q4 = run_q4(driver)
+        df_q5 = run_q5(driver)
         
-        # print("\nQ1 Output Preview:")
-        # print(df_q1.head())
-        # print("\nQ2 Output Preview:")
-        # print(df_q2.head())
-        # print("\nQ3 Output Preview:")
-        # print(df_q3.head())
+        print("\nQ1 Output Preview:")
+        print(df_q1.head())
+        print("\nQ2 Output Preview:")
+        print(df_q2.head())
+        print("\nQ3 Output Preview:")
+        print(df_q3.head())
         print("\nQ4 Output Preview:")
         print(df_q4.head())
+        print("\nQ5 Output Preview:")
+        print(df_q5.head())
         
     except Exception as e:
         logger.exception(f"Query execution failed: {e}")
