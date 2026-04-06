@@ -195,18 +195,20 @@ def run_q3():
     ]
     top_cats = [x['_id'] for x in db.businesses.aggregate(cat_pipeline)]
     
-    # 3. Build Cross Tabulation
+    # 3. Build Cross Tabulation (Updated for Tip Ratio)
     cross_tab_pipeline =[
         { "$unwind": "$categories" },
         { "$match": { "categories": { "$in": top_cats } } },
         { "$project": {
             "category": "$categories",
-            "stars": 1, "review_count": 1,
+            "stars": 1, 
+            "review_count": 1,
+            "tip_count": 1,
             "tier": {
                 "$switch": {
                     "branches": [
                         { "case": { "$lte": ["$checkin_count", p25] }, "then": "Low (Bottom 25%)" },
-                        { "case": { "$gte":["$checkin_count", p75] }, "then": "High (Top 25%)" }
+                        { "case": { "$gte": ["$checkin_count", p75] }, "then": "High (Top 25%)" }
                     ],
                     "default": "Medium (Middle 50%)"
                 }
@@ -215,12 +217,22 @@ def run_q3():
         { "$group": {
             "_id": { "category": "$category", "tier": "$tier" },
             "mean_stars": { "$avg": "$stars" },
-            "mean_reviews": { "$avg": "$review_count" }
+            "mean_reviews": { "$avg": "$review_count" },
+            # Sum up tips and reviews to calculate the true ratio for the bucket
+            "total_reviews": { "$sum": "$review_count" },
+            "total_tips": { "$sum": "$tip_count" }
         }},
         { "$project": {
             "Category": "$_id.category", "Checkin_Tier": "$_id.tier",
-            "Mean_Stars": { "$round":["$mean_stars", 2] },
-            "Mean_Review_Count": { "$round":["$mean_reviews", 0] },
+            "Mean_Stars": { "$round": ["$mean_stars", 2] },
+            "Mean_Review_Count": { "$round": ["$mean_reviews", 0] },
+            # Handle division by zero safely
+            "Tip_to_Review_Ratio": { 
+                "$round": [
+                    { "$cond": [{ "$eq":["$total_reviews", 0] }, 0, { "$divide":["$total_tips", "$total_reviews"] }] }, 
+                    3
+                ] 
+            },
             "_id": 0
         }},
         { "$sort": { "Category": 1, "Checkin_Tier": 1 } }
@@ -230,7 +242,7 @@ def run_q3():
     df = pd.DataFrame(results)
     
     # Pivot for clean cross-tabulation display
-    pivot_df = df.pivot(index='Category', columns='Checkin_Tier', values=['Mean_Stars', 'Mean_Review_Count'])
+    pivot_df = df.pivot(index='Category', columns='Checkin_Tier', values=['Mean_Stars', 'Mean_Review_Count', 'Tip_to_Review_Ratio'])
     
     interpretation =[
         "INTERPRETATION:",
