@@ -1,0 +1,96 @@
+
+================================================================================
+Query 1: PageRank on User-Business Projection
+================================================================================
+
+SPEARMAN CORRELATIONS:
+- PageRank vs Review Count: 0.773
+- PageRank vs Avg Star Rating: 0.102
+
+DISCUSSION:
+A high correlation with Review Count is expected, as more inbound edges (reviews) natively increase PageRank. However, businesses that rank significantly higher in PageRank than in standard Review Count do so because they are reviewed by 'Power Users' (users who themselves have high centrality/activity). A highly weighted edge from an active Elite user transfers more PageRank than a review from a one-off account.
+
+                                  Name    PageRank  ReviewCount  AvgStars
+0                         Oceana Grill  457.693546         7400       4.0
+1                    Acme Oyster House  326.372303         7568       4.0
+2   Hattie B’s Hot Chicken - Nashville  285.296009         6093       4.5
+3                          Royal House  281.305501         5070       4.0
+4           Ruby Slipper - New Orleans  280.800194         5193       4.5
+5                           Los Agaves  248.654828         3834       4.5
+6       Grand Sierra Resort and Casino  226.587474         3345       3.0
+7                  Mother's Restaurant  220.139684         5185       3.5
+8                                 Luke  203.352839         4554       4.0
+9                   Commander's Palace  202.579260         4876       4.5
+10                              Cochon  194.881193         4421       4.0
+11                 Biscuit Love: Gulch  190.885683         4207       4.0
+12     Felix's Restaurant & Oyster Bar  184.652867         3966       4.0
+13                  Pappy's Smokehouse  184.288614         3999       4.5
+14                          Gumbo Shop  173.465197         3902       4.0
+
+
+================================================================================
+Query 2: Louvain Community Detection & Geo-Concentration
+================================================================================
+
+LOUVAIN COMMUNITY INSIGHTS:
+We observe that communities with high Geographic Concentration scores (>0.85) imply that social circles on Yelp are predominantly localized. Users are mostly friends with people in their own city/state, making Yelp's social graph heavily clustered geographically.
+
+    CommunityID  Size TopState  GeoConcentration
+0        136639    28       CA               1.0
+1        132497    27       PA               1.0
+2        132445    30       IN               1.0
+3        132713    59       IN               1.0
+4        129536    40       CA               1.0
+5        131912    63       PA               1.0
+6        119359    27       CA               1.0
+7        123032    25       CA               1.0
+8        108029    59       CA               1.0
+9         85437    38       CA               1.0
+10        70734    31       PA               1.0
+11        82736    31       CA               1.0
+12       129050    25       CA               1.0
+13       121303    63       CA               1.0
+14       136943    47       IN               1.0
+
+
+================================================================================
+Query 3: Node Similarity (Jaccard) & Market Saturation
+================================================================================
+
+MARKET SATURATION ANALYSIS (Top 10 Cities):
+Saturated markets (High Similarity) indicate high competition for the exact same customer pool. A new business entering these markets must steal customers rather than acquire new ones.
+Fragmented markets (Low Similarity) indicate distinct audiences, meaning lower direct competition.
+
+              City          Category  Mean_Similarity  Unique_Businesses
+161       Edmonton        Mass Media         0.274332                 18
+207       Edmonton    Radio Stations         0.264114                 10
+238       Edmonton    Swimming Pools         0.238690                  6
+275       Edmonton  Women's Clothing         0.228264                 75
+168       Edmonton    Men's Clothing         0.217010                 47
+120  Santa Barbara   Hotels & Travel         0.010707                 73
+119  Santa Barbara            Hotels         0.009128                 37
+60           Tampa        Car Rental         0.008611                 13
+143    New Orleans  Historical Tours         0.006686                 12
+296    New Orleans     Walking Tours         0.006617                 14
+
+
+================================================================================
+Query 4: Betweenness vs Degree Centrality (Bridge User Analysis)
+================================================================================
+
+CENTRALITY OVERLAP SIZE: 7 out of 20
+
+METRIC COMPARISON:
+Group 1: 'Bridge' Users (Top 20 Betweenness, Outside Top 20 Degree)
+   - Mean Reviews: 1283.9
+   - Distinct Cities: 15.2
+   - Distinct Categories: 60.4
+
+Group 2: High Degree Users (Top 20 Degree)
+   - Mean Reviews: 1813.0
+   - Distinct Cities: 12.8
+   - Distinct Categories: 40.2
+
+DISCUSSION:
+Users with high betweenness but low degree act as 'Bridges' between isolated social clusters. As shown by the metrics above, these Bridge users often travel to more distinct cities and review more diverse categories than purely high-degree users, who tend to be local 'hubs' clustered in a single geographic area.
+

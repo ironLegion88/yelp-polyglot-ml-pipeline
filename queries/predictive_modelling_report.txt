@@ -1,0 +1,49 @@
+
+=========================================================
+PREDICTIVE MODELLING REPORT (PART 2 - SECTION 3)
+=========================================================
+
+1. FEATURE ENGINEERING & GRAPH JUSTIFICATION
+---------------------------------------------------------
+(a) Review-level: 'review_stars', 'review_length' (Word count/effort proxy)
+(b) User-level: 'user_tenure_days', 'user_review_count', 'user_average_stars', 'is_elite_at_review'
+(c) Graph-derived: 
+    - 'user_degree' (Number of friends): Justification: Social network theory dictates that highly connected users have wider distribution. Their reviews appear in more friends' feeds, directly increasing the probability of receiving 'useful' votes due to higher baseline visibility.
+    - 'business_pagerank': Justification: PageRank measures the global influence and traffic of a business within the Yelp network. Reviews left on high-PageRank businesses are viewed by orders of magnitude more unique visitors, massively increasing the potential pool of 'useful' votes compared to obscure businesses.
+
+2. MODEL TRAINING & EVALUATION
+---------------------------------------------------------
+Model: XGBoost Regressor (tree_method='hist')
+Objective: Minimize Squared Error (reg:squarederror)
+
+Why this model/objective? Useful votes represent count data with extreme right-skew. XGBoost handles non-linear interactions between text-length and network effects flawlessly without requiring strict feature scaling.
+
+OVERALL TEST METRICS:
+- RMSE: 3.818
+- MAE:  1.121
+- R^2:  0.145
+
+METRICS BY USEFUL VOTE BUCKET (Addressing Skew):
+- Zero Votes (0): RMSE=1.017, MAE=0.761
+- Low Votes (1-5): RMSE=1.497, MAE=1.025
+- Medium (6-20): RMSE=6.575, MAE=5.638
+- High Votes (21+): RMSE=63.960, MAE=25.995
+
+Evaluation Choice Justification: Reporting overall RMSE alone is deceptive due to the heavy right-skew (millions of 0s). By evaluating per bucket, we prove the model's performance decays on viral reviews (21+) but remains highly accurate for standard reviews (0-5).
+
+3. FEATURE IMPORTANCE & DISCUSSION
+---------------------------------------------------------
+(Based on SHAP Summary Analysis - See docs/diagrams/shap_summary_plot.png)
+
+TOP 3 PREDICTIVE FEATURES:
+1. review_length: The single strongest predictor. Longer reviews intrinsically contain more detail, menus, and nuanced context, making them objectively more "useful" to readers than short tips.
+2. user_degree (Friends Network): The graph structure proves crucial. A high degree guarantees the review is surfaced in the activity feeds of hundreds of other users, guaranteeing higher vote engagement.
+3. is_elite_at_review / user_review_count: Elite badges signal trust. Users reading reviews unconsciously anchor on the Elite badge and total review count, rewarding established power-users with 'useful' votes.
+
+LIMITATION:
+The model lacks Natural Language Processing (NLP). It relies on 'review_length' as a proxy for quality. A user could write a 1,000-word block of gibberish, and the model would falsely predict a high number of useful votes.
+
+POTENTIAL CONSEQUENCE OF RANKING:
+If Yelp used this model to rank reviews at the top of a business page, it would create a "Rich Get Richer" feedback loop. Reviews by highly connected (high user_degree) Elite users would always rank first, burying high-quality reviews from newer or less socially connected users, ultimately discouraging new user engagement on the platform.
+=========================================================
+    

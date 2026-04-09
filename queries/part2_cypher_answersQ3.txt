@@ -1,0 +1,21 @@
+
+================================================================================
+Query 3: Node Similarity (Jaccard) & Market Saturation
+================================================================================
+
+MARKET SATURATION ANALYSIS (Top 10 Cities):
+Saturated markets (High Similarity) indicate high competition for the exact same customer pool. A new business entering these markets must steal customers rather than acquire new ones.
+Fragmented markets (Low Similarity) indicate distinct audiences, meaning lower direct competition.
+
+              City          Category  Mean_Similarity  Unique_Businesses
+161       Edmonton        Mass Media         0.274332                 18
+207       Edmonton    Radio Stations         0.264114                 10
+238       Edmonton    Swimming Pools         0.238690                  6
+275       Edmonton  Women's Clothing         0.228264                 75
+168       Edmonton    Men's Clothing         0.217010                 47
+120  Santa Barbara   Hotels & Travel         0.010707                 73
+119  Santa Barbara            Hotels         0.009128                 37
+60           Tampa        Car Rental         0.008611                 13
+143    New Orleans  Historical Tours         0.006686                 12
+296    New Orleans     Walking Tours         0.006617                 14
+
